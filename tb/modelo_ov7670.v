@@ -16,6 +16,7 @@
 //     activa; los datos cambian en el flanco de bajada de PCLK.
 // La imagen es sintetica y a color: pared con textura, piso mas claro, ruido
 // de sensor y, segun 'escena', un perro cafe o una persona de azul que camina.
+// Con 'movida' = 1 todo el fondo cambia de golpe, como cuando mueven la camara.
 // La escena esta dibujada en una rejilla de 160 x 120 y se escala al tamano
 // que entrega la camara.
 // ============================================================
@@ -144,6 +145,7 @@ module modelo_ov7670 #(
 
     // ---------------- escena ----------------
     reg [1:0] escena = 2'd0;      // 0 vacia, 1 perro, 2 persona (lo controla el testbench)
+    reg       movida = 1'b0;      // 1 = movieron la camara: ahora ve otra pared, mas clara
     integer   t_escena = 0;       // cuadros desde que empezo la escena
     integer   cuadros  = 0;
     reg [15:0] lfsr = 16'hACE1;
@@ -153,6 +155,8 @@ module modelo_ov7670 #(
         integer fondo, cx, k, dx, dy, pierna;
         begin
             fondo = 150 + ((y > 80) ? 20 : 0) + ((((x >> 3) ^ (y >> 3)) & 1) ? 6 : 0);
+            if (movida)
+                fondo = 222 + ((y > 80) ? 10 : 0) + ((((x >> 4) ^ (y >> 3)) & 1) ? 6 : 0);
             luminancia = fondo;
             if (escena == 2'd1) begin
                 // perro: camina de derecha a izquierda por el piso

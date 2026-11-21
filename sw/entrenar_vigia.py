@@ -3,11 +3,13 @@ Entrena la red neuronal binaria de NEURA-32 Vigia y la exporta a Verilog.
 
 Red:  512 entradas (silueta de 16 x 32 bits) -> 64 neuronas binarias -> 3 clases
       clase 0 = persona, 1 = objeto o animal, 2 = ruido (sombra, luz, manchas)
+      La persona puede verse de cuerpo completo, de medio cuerpo o solo el busto
+      (cabeza y hombros, como una foto tamano infantil).
 
 Capa oculta binaria: pesos de 1 bit. En el procesador cada neurona es
     cuenta = POPCOUNT(XNOR(x, w))   sobre 16 palabras de 32 bits
     a      = cuenta >= T            (umbral entero)
-y XNOR y POPCOUNT son operaciones de la ALU de la Practica 3 (extension Xneura).
+y XNOR y POPCOUNT son instrucciones del procesador: xnor (tabla OP_R2) y cpop (tabla OP_R3).
 Capa de salida: pesos de 8 bits con signo, o_k = B2_k + suma de W2_kj donde a_j = 1.
 
 Las siluetas se generan en la rejilla de 80 x 60 de la mascara y se recortan
@@ -41,20 +43,29 @@ def segmento(xa, ya, xb, yb, grosor):
     px, py = xa + t * vx, ya + t * vy
     return (XX - px) ** 2 + (YY - py) ** 2 <= (grosor / 2.0) ** 2
 
-def persona(alto, cx, pies, fase=None, de_lado=None):
-    """Silueta de una persona de pie o caminando."""
+def persona(alto, cx, pies, fase=None, de_lado=None, hombros=None):
+    """Silueta de una persona de pie o caminando.
+    Si la estatura es mayor que la imagen, lo que no cabe queda fuera: asi salen el
+    medio cuerpo y el busto (ver persona_cerca)."""
     H = alto
     if fase is None:
         fase = rng.uniform(-1, 1)            # zancada
     if de_lado is None:
         de_lado = rng.random() < 0.5
+    if hombros is None:
+        hombros = rng.random() < 0.5         # hombros caidos (redondeados) o cuadrados
     ancho_t = H * (rng.uniform(0.17, 0.22) if de_lado else rng.uniform(0.24, 0.32))
     top = pies - H + 1
     r_cab = max(1.0, H * rng.uniform(0.065, 0.085))
     m = elipse(cx + rng.uniform(-0.5, 0.5), top + r_cab, r_cab * 0.9, r_cab)
     hombro = top + 2 * r_cab
     cadera = top + H * rng.uniform(0.50, 0.56)
-    m |= rect(cx - ancho_t / 2, hombro, cx + ancho_t / 2, cadera)                     # torso
+    if hombros:
+        caida = H * rng.uniform(0.02, 0.05)
+        m |= elipse(cx, hombro + caida, ancho_t / 2, caida)
+        m |= rect(cx - ancho_t / 2, hombro + caida, cx + ancho_t / 2, cadera)         # torso
+    else:
+        m |= rect(cx - ancho_t / 2, hombro, cx + ancho_t / 2, cadera)                 # torso
     m |= rect(cx - r_cab * 0.4, hombro - r_cab * 0.6, cx + r_cab * 0.4, hombro)       # cuello
     paso = fase * H * 0.18
     g_pierna = max(1.6, ancho_t * 0.42)
@@ -70,6 +81,33 @@ def persona(alto, cx, pies, fase=None, de_lado=None):
         lado = rng.choice([-1, 1])
         m |= rect(cx + lado * ancho_t / 2, hombro + 1, cx + lado * (ancho_t / 2 + H * 0.1), cadera - 1)
     return m
+
+def persona_cerca(tipo, estatura=None, cx=None, top=None, corte=None, **kw):
+    """Persona cerca de la camara: no cabe completa en la imagen.
+       tipo 1 = medio cuerpo (de la cabeza a la cintura o la cadera)
+       tipo 2 = busto (cabeza y hombros, como una foto tamano infantil)
+    Lo de abajo lo corta el borde de la imagen o un mueble (mostrador, escritorio)."""
+    while True:
+        if tipo == 1:
+            H = rng.uniform(45, 115) if estatura is None else estatura
+            visible = rng.uniform(0.40, 0.62)
+        else:
+            H = rng.uniform(70, 220) if estatura is None else estatura
+            visible = rng.uniform(0.20, 0.36)
+        y_corte = corte
+        if y_corte is None:
+            y_corte = ALTO - 1 if rng.random() < 0.7 else rng.uniform(30, ALTO - 2)
+        y_top = (y_corte - visible * H) if top is None else top
+        if y_top < 0 and top is None:
+            continue                                   # la cabeza debe quedar a la vista
+        x = cx
+        if x is None:
+            medio = min(38.0, 0.16 * H + 2)            # que los hombros no se salgan por los lados
+            x = rng.uniform(medio, ANCHO - medio)
+        kw.setdefault("de_lado", rng.random() < (0.3 if tipo == 1 else 0.15))
+        m = persona(H, x, y_top + H - 1, **kw) & (YY <= y_corte)
+        if m.sum() >= 30:
+            return m
 
 def animal(largo, cx, pies):
     """Perro o gato: cuerpo horizontal, cuatro patas, cabeza y cola."""
@@ -88,8 +126,39 @@ def animal(largo, cx, pies):
     return m
 
 def objeto(cx, pies):
-    """Cajas, puertas, carritos, maletas, sillas: formas rigidas."""
-    tipo = rng.integers(0, 4)
+    """Cajas, puertas, carritos, maletas, sillas, pantallas, mesas: formas rigidas.
+    Varias se parecen a un busto o a medio cuerpo (algo angosto sobre algo ancho, o
+    cortadas por el borde de abajo) para que la red aprenda la diferencia."""
+    tipo = rng.integers(0, 9)
+    if tipo == 4:                                     # pantalla o letrero sobre un poste
+        w = rng.uniform(12, 44); h = w * rng.uniform(0.5, 0.8)
+        poste = rng.uniform(4, 22)
+        m = rect(cx - w / 2, pies - poste - h, cx + w / 2, pies - poste)
+        m |= rect(cx - 1.2, pies - poste, cx + 1.2, pies)
+        m |= rect(cx - w * 0.25, pies - 1.5, cx + w * 0.25, pies)
+        return m
+    if tipo == 5:                                     # cajas apiladas (la de arriba mas chica)
+        w = rng.uniform(14, 46); h = rng.uniform(8, 30)
+        w2 = w * rng.uniform(0.3, 0.8); h2 = rng.uniform(5, 20)
+        corr = rng.uniform(-0.3, 0.3) * (w - w2)
+        m = rect(cx - w / 2, pies - h, cx + w / 2, pies)
+        m |= rect(cx + corr - w2 / 2, pies - h - h2, cx + corr + w2 / 2, pies - h)
+        return m
+    if tipo == 6:                                     # pelota, globo o lampara
+        r = rng.uniform(3, 16)
+        m = elipse(cx, pies - r, r * rng.uniform(0.8, 1.2), r)
+        if rng.random() < 0.4:
+            m |= rect(cx - 0.8, pies - r, cx + 0.8, pies + rng.uniform(4, 20))
+        return m
+    if tipo == 7:                                     # mesa o banca: tabla ancha con patas
+        w = rng.uniform(20, 60); h = rng.uniform(10, 30); g = rng.uniform(1.5, 4)
+        m = rect(cx - w / 2, pies - h, cx + w / 2, pies - h + g)
+        m |= rect(cx - w / 2, pies - h, cx - w / 2 + g, pies)
+        m |= rect(cx + w / 2 - g, pies - h, cx + w / 2, pies)
+        return m
+    if tipo == 8:                                     # mueble o puerta que llega al borde de abajo
+        w = rng.uniform(10, 60); y0 = rng.uniform(5, 45)
+        return rect(cx - w / 2, y0, cx + w / 2, ALTO - 1)
     if tipo == 0:                                     # caja o mueble (a veces alto como persona)
         w = rng.uniform(6, 34); h = rng.uniform(6, 50)
         return rect(cx - w / 2, pies - h, cx + w / 2, pies)
@@ -221,16 +290,24 @@ def empaca(img):
         palabras.append(v)
     return palabras
 
-def muestra(clase):
+TIPOS_PERSONA = ("cuerpo completo", "medio cuerpo", "busto")
+
+def muestra(clase, tipo=None):
+    """Una silueta recortada a 16 x 32. En la clase 0 (persona), tipo 0 = cuerpo
+    completo, 1 = medio cuerpo, 2 = busto; sin tipo se sortea 40 / 30 / 30 %."""
     while True:
         if clase == 0:
-            alto = rng.uniform(16, 56)
-            pies = rng.uniform(alto, 59)
-            m = persona(alto, rng.uniform(3, 77), pies)
-            if rng.random() < 0.4:
-                m = sombra_pies(m)
-            if rng.random() < 0.15:                                    # tapada abajo
-                m &= YY < pies - alto * rng.uniform(0.05, 0.3)
+            t = tipo if tipo is not None else rng.choice(3, p=(0.4, 0.3, 0.3))
+            if t == 0:
+                alto = rng.uniform(16, 56)
+                pies = rng.uniform(alto, 59)
+                m = persona(alto, rng.uniform(3, 77), pies)
+                if rng.random() < 0.4:
+                    m = sombra_pies(m)
+                if rng.random() < 0.15:                                # tapada abajo
+                    m &= YY < pies - alto * rng.uniform(0.05, 0.3)
+            else:
+                m = persona_cerca(t)
         elif clase == 1:
             pies = rng.uniform(20, 59)
             m = animal(rng.uniform(10, 40), rng.uniform(5, 75), pies) if rng.random() < 0.5 else objeto(rng.uniform(5, 75), pies)
@@ -248,7 +325,7 @@ def conjunto(n_por_clase):
     return np.array(X, np.float32), np.array(Y)
 
 print("generando siluetas...")
-Xtr, Ytr = conjunto(3000)
+Xtr, Ytr = conjunto(4000)
 Xte, Yte = conjunto(600)
 print(f"entrenamiento {len(Xtr)}, prueba {len(Xte)}")
 
@@ -331,14 +408,32 @@ print(f"exactitud con enteros (lo que corre en el RISC-V): {exact:.1f}%")
 print("matriz de confusion (filas real, columnas predicha) persona/objeto/ruido:")
 print(conf)
 
-# silueta de prueba para el banco de pruebas de velocidad: una persona tipica
-rng_prueba = np.random.default_rng(7)
+# exactitud por tipo de persona (400 siluetas nuevas de cada tipo)
+exact_tipo = []
+for t in range(3):
+    bien = sum(inferir_entera(muestra(0, t).reshape(-1))[0] == 0 for _ in range(400))
+    exact_tipo.append(bien / 4.0)
+    print(f"personas de {TIPOS_PERSONA[t]} reconocidas: {exact_tipo[t]:.1f}%")
+
+# tres siluetas de prueba que van en la memoria de programa: el procesador las clasifica
+# al arrancar (autoprueba) y con la primera mide la velocidad de la red
 rng_guardado = rng
-rng = rng_prueba
-img_prueba = recorte(mayor_componente(persona(40, 40, 50, fase=0.4, de_lado=False)))
+rng = np.random.default_rng(7)
+figuras_prueba = [
+    persona(40, 40, 50, fase=0.4, de_lado=False),                                           # cuerpo completo
+    persona_cerca(1, estatura=80, cx=40, top=12, corte=ALTO - 1, fase=0.2, de_lado=False),  # medio cuerpo
+    persona_cerca(2, estatura=170, cx=40, top=6, corte=ALTO - 1, fase=0.0, de_lado=False),  # busto
+]
 rng = rng_guardado
-clase_prueba, o_prueba, _ = inferir_entera(img_prueba.reshape(-1))
-print(f"silueta de prueba -> clase {clase_prueba}, puntuaciones {list(o_prueba)}")
+imgs_prueba = [recorte(mayor_componente(f)) for f in figuras_prueba]
+clases_prueba = []
+for t, img in enumerate(imgs_prueba):
+    c, o, _ = inferir_entera(img.reshape(-1))
+    clases_prueba.append(c)
+    print(f"silueta de prueba ({TIPOS_PERSONA[t]}) -> clase {c}, puntuaciones {[int(v) for v in o]}")
+img_prueba = imgs_prueba[0]
+clase_prueba = clases_prueba[0]
+personas_prueba = sum(c == 0 for c in clases_prueba)
 
 raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 destino = os.path.join(raiz, "prog", "pesos_vigia.vh")
@@ -351,14 +446,17 @@ with open(destino, "w", encoding="ascii") as f:
     f.write("// Matriz de confusion (persona / objeto o animal / ruido):\n")
     for k in range(3):
         f.write(f"//   {conf[k].tolist()}\n")
+    f.write("// Personas reconocidas por tipo: " + ", ".join(
+        f"{TIPOS_PERSONA[t]} {exact_tipo[t]:.1f}%" for t in range(3)) + "\n")
     f.write("// ============================================================\n")
     f.write("localparam VIG_ENTRADAS = 512, VIG_OCULTAS = 64, VIG_SALIDAS = 3;\n")
     f.write("reg        [31:0] VIG_W1 [0:1023];      // neurona j, palabra w -> VIG_W1[16*j + w]\n")
     f.write("reg        [31:0] VIG_T1 [0:63];        // a_j = POPCOUNT(XNOR) >= VIG_T1[j]\n")
     f.write("reg signed [7:0]  VIG_W2 [0:191];       // VIG_W2[64*k + j]\n")
     f.write("reg signed [31:0] VIG_B2 [0:2];\n")
-    f.write("reg        [31:0] VIG_PRUEBA [0:15];    // silueta de prueba empaquetada\n")
-    f.write(f"localparam VIG_PRUEBA_CLASE = {clase_prueba};\n\n")
+    f.write("reg        [31:0] VIG_PRUEBA [0:47];    // 3 siluetas de prueba: cuerpo completo, medio cuerpo y busto\n")
+    f.write(f"localparam VIG_PRUEBA_CLASE = {clase_prueba};      // clase de la primera (0 = persona)\n")
+    f.write(f"localparam VIG_PRUEBA_PERSONAS = {personas_prueba};   // cuantas de las 3 salen como persona\n\n")
     f.write("task cargar_pesos_vigia;\n    begin\n")
     for j in range(N_H):
         pal = empaca(bits_w1[j].reshape(32, 16))
@@ -367,22 +465,30 @@ with open(destino, "w", encoding="ascii") as f:
     for k in range(N_OUT):
         f.write("        " + " ".join(f"VIG_W2[{64 * k + j}] = {W2q[k, j]};" for j in range(N_H)) + "\n")
     f.write("        " + " ".join(f"VIG_B2[{k}] = {B2q[k]};" for k in range(N_OUT)) + "\n")
-    f.write("        " + " ".join(f"VIG_PRUEBA[{w}] = 32'h{v:08X};" for w, v in enumerate(empaca(img_prueba))) + "\n")
+    for t, img in enumerate(imgs_prueba):
+        f.write("        " + " ".join(f"VIG_PRUEBA[{16 * t + w}] = 32'h{v:08X};" for w, v in enumerate(empaca(img))) + "\n")
     f.write("    end\nendtask\n")
 print("escrito", destino)
 
-# imagenes de ejemplo para el README
+# imagenes de ejemplo para el README: tres filas de personas (cuerpo completo, medio cuerpo
+# y busto), una de objetos y animales y una de ruido
 try:
     from PIL import Image
     os.makedirs(os.path.join(raiz, "docs", "img"), exist_ok=True)
-    lienzo = Image.new("L", (3 * 8 * 20, 3 * 34 * 4), 40)
-    for k in range(3):
-        idx = np.nonzero(Yte == k)[0][:8]
-        for n, i in enumerate(idx):
-            img = Image.fromarray((Xte[i].reshape(32, 16) * 255).astype(np.uint8)).resize((64, 128), Image.NEAREST)
-            lienzo.paste(img, (n * 60 + (k % 1), k * 136 + 4))
-    lienzo = lienzo.crop((0, 0, 8 * 60, 3 * 136))
+    filas = [[muestra(0, t) for _ in range(10)] for t in range(3)]
+    filas += [[muestra(k) for _ in range(10)] for k in (1, 2)]
+    lienzo = Image.new("L", (10 * 72 + 8, 5 * 136 + 8), 40)
+    for r, fila in enumerate(filas):
+        for n, img in enumerate(fila):
+            cuadro = Image.fromarray((img * 255).astype(np.uint8)).resize((64, 128), Image.NEAREST)
+            lienzo.paste(cuadro, (8 + n * 72, 8 + r * 136))
     lienzo.save(os.path.join(raiz, "docs", "img", "siluetas_entrenamiento.png"))
     print("escrito docs/img/siluetas_entrenamiento.png")
+    prueba = Image.new("L", (3 * 72 + 8, 136 + 8), 40)
+    for n, img in enumerate(imgs_prueba):
+        cuadro = Image.fromarray((img * 255).astype(np.uint8)).resize((64, 128), Image.NEAREST)
+        prueba.paste(cuadro, (8 + n * 72, 8))
+    prueba.save(os.path.join(raiz, "docs", "img", "siluetas_prueba.png"))
+    print("escrito docs/img/siluetas_prueba.png")
 except ImportError:
     pass

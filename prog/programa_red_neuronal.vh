@@ -7,9 +7,9 @@
 //
 //   capa 1:  h[j] = b1[j] + sum_i W1[j][i] * x[i]        (x[i] = pixel)
 //            a[j] = clamp(h[j] >> SH1, 0, 127)            ReLU + saturacion
-//                   -> una sola instruccion Xneura: x.clamp
+//                   -> una sola instruccion de la tabla OP_R3: clamp
 //   capa 2:  o[k] = b2[k] + sum_j W2[k][j] * a[j]        (mul de RV32M)
-//   salida:  clase = argmax o[k]                          (x.sgt de Xneura)
+//   salida:  clase = argmax o[k]                          (sgt, de la tabla OP_R3)
 //
 // Resultados:  RAM 0x1000_0000 = clase, 0x1000_0004.. = 8 puntuaciones,
 //              0x1000_0100.. = activaciones a[16]
@@ -58,7 +58,7 @@ task programa_red;
         BLT_A(T3, T5, R_c1_i);
         emitir(SRAI(A0, A0, RED_SH1));            // requantiza
         emitir(ADDI(T5, X0, 127));
-        emitir(XOP(XA_CLAMP, A0, A0, T5));        // a = clamp(acc, 0, 127)  [Xneura]
+        emitir(XOP(XA_CLAMP, A0, A0, T5));        // a = clamp(acc, 0, 127)  [OP_R3]
         emitir(ADD(T5, S2, T2));
         emitir(SB(A0, T5, 32'h100));              // a[j] -> RAM 0x1000_0100 + j
         emitir(ADDI(T1, T1, 4));
@@ -88,7 +88,7 @@ task programa_red;
         emitir(SLLI(T5, T2, 2));
         emitir(ADD(T5, T5, S2));
         emitir(SW(A0, T5, 4));                    // puntuacion[k] -> RAM 0x1000_0004 + 4k
-        emitir(XOP(XA_SGT, T5, A0, S3));          // acc > mejor ?   [Xneura]
+        emitir(XOP(XA_SGT, T5, A0, S3));          // acc > mejor ?   [OP_R3]
         BEQZ(T5, R_c2_skip);
         emitir(ADDI(S3, A0, 0));                  // mejor = acc
         emitir(ADDI(S4, T2, 0));                  // clase = k

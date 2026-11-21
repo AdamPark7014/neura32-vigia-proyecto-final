@@ -8,7 +8,7 @@
 //   SW[1:0]        zona y linea (4 configuraciones)
 //   SW[2]          sentido prohibido: 0 = izquierda->derecha, 1 = al reves
 //   SW[3]          pinta la silueta detectada en azul
-//   SW[4]          red neuronal con RV32IM puro, sin Zbb (para comparar)
+//   SW[4]          red neuronal sin cpop: cuenta los bits por software (para comparar)
 //   LEDR9          alarma (parpadea)    LEDR8 aprendiendo el fondo
 //   LEDR7          camara identificada  LEDR0 alarma
 //   HEX5..HEX4     entradas   HEX3..HEX2 salidas

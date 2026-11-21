@@ -3,13 +3,16 @@
 // TESTBENCH DEL SISTEMA COMPLETO — NEURA-32 VIGIA (PROGRAMA = 3)
 //
 // SoC + modelo de la camara OV7670. La camara simulada entrega 160x120
-// (en la placa son 640x480; la deteccion es de 80x60 en ambos casos).
+// (en la placa son 320x240; la deteccion es de 80x60 en ambos casos).
 // Guion:
 //   1. arranque: el programa configura la camara por SCCB, la identifica,
-//      mide la red y aprende el fondo vacio
-//   2. un perro cruza de derecha a izquierda por la zona: NO debe haber
+//      mide la red, hace la autoprueba con tres siluetas guardadas (cuerpo
+//      completo, medio cuerpo y busto) y aprende el fondo vacio
+//   2. mueven la camara (todo el fondo cambia): NO debe haber alarma; el
+//      programa lo nota, vuelve a aprender el fondo y sigue vigilando
+//   3. un perro cruza de derecha a izquierda por la zona: NO debe haber
 //      alarma ni conteo (la red debe decir "objeto o animal")
-//   3. una persona entra por la izquierda, cruza la linea en el sentido
+//   4. una persona entra por la izquierda, cruza la linea en el sentido
 //      prohibido y se queda en la zona: entrada = 1, alarma por cruce y
 //      por zona
 // Comprueba ademas la red del programa contra un modelo de referencia en
@@ -52,7 +55,7 @@ module tb_vigia;
         .leds(leds), .hex(hex),
         .consola_char(consola_char), .consola_we(consola_we), .control(control),
         .cam_pclk(cam_pclk), .cam_href(cam_href), .cam_vsync(cam_vsync), .cam_d(cam_d),
-        .cam_sioc(cam_sioc), .cam_siod(cam_siod), .cam_reset_n(cam_reset_n), .cam_pwdn(cam_pwdn),
+        .cam_sioc(cam_sioc), .cam_siod(cam_siod), .cam_reset_n(cam_reset_n), .cam_pwdn(cam_pwdn), .cam_fase(),
         .vga_r(vga_r), .vga_g(vga_g), .vga_b(vga_b), .vga_hs(vga_hs), .vga_vs(vga_vs),
         .fin(fin), .instr_ilegal(instr_ilegal),
         .ciclos(ciclos), .instret(instret)
@@ -74,6 +77,7 @@ module tb_vigia;
     localparam VR_ALARMA = 28, VR_NBLOBS = 32, VR_EN_ZONA = 36, VR_BENCH_X = 44, VR_BENCH_R = 48;
     localparam VR_NO_PERSONA = 72, VR_PERSONAS = 76, VR_EVENTOS = 80, VR_CLASE_PRUEBA = 84;
     localparam VR_CICLOS = 88, VR_MAX_CICLOS = 92, VR_PUNT = 96, VR_RECORTE = 32'h400, VR_LOG = 32'h500;
+    localparam VR_VISTAS = 124, VR_AUTOPRUEBA = 128, VR_REAPRENDIDOS = 140;
 
     function [31:0] ram;
         input integer desp;
@@ -188,10 +192,11 @@ module tb_vigia;
     endtask
 
     integer eventos_perro, alarma_perro, no_persona_perro, personas_perro, cuadro_inicio_persona;
+    integer reaprendidos_mov, eventos_mov, alarma_mov, fg_mov;
     integer k2;
 
     initial begin
-        #(40 * 75_000_000);                    // 3 s de simulacion como limite
+        #3.0e9;                                // 3 s de simulacion como limite
         $display("TIEMPO AGOTADO");
         $finish;
     end
@@ -210,7 +215,19 @@ module tb_vigia;
         $display("[%t] arranque listo: cuadro %0d, %0d escrituras y %0d lecturas SCCB",
                  $time, ram(VR_CUADRO), camara.escrituras, camara.lecturas);
 
-        // ---------------- 2. un perro cruza la zona ----------------
+        // ---------------- 2. mueven la camara ----------------
+        @(posedge cam_vsync);                  // el cambio entra con un cuadro completo
+        camara.movida = 1'b1;
+        $display("[%t] escena: CAMARA MOVIDA (cambia todo el fondo)", $time);
+        repeat (10) @(posedge cam_vsync);
+        reaprendidos_mov = ram(VR_REAPRENDIDOS);
+        eventos_mov      = ram(VR_EVENTOS);
+        alarma_mov       = ram(VR_ALARMA);
+        fg_mov           = dut.regs_vision.vis_pixeles_fg;
+        $display("[%t] camara movida: fondo aprendido %0d vez, %0d celdas de silueta, %0d eventos",
+                 $time, reaprendidos_mov, fg_mov, eventos_mov);
+
+        // ---------------- 3. un perro cruza la zona ----------------
         camara.escena = 2'd1; camara.t_escena = 0;
         $display("[%t] escena: PERRO cruzando de derecha a izquierda", $time);
         repeat (15) @(posedge cam_vsync);
@@ -221,7 +238,7 @@ module tb_vigia;
         camara.escena = 2'd0;
         repeat (6) @(posedge cam_vsync);
 
-        // ---------------- 3. una persona entra y se queda en la zona ----------------
+        // ---------------- 4. una persona entra y se queda en la zona ----------------
         cuadro_inicio_persona = ram(VR_CUADRO);
         camara.escena = 2'd2; camara.t_escena = 0;
         $display("[%t] escena: PERSONA entrando por la izquierda", $time);
@@ -241,7 +258,7 @@ module tb_vigia;
                  ram(VR_CUADRO), ram(VR_PERSONAS), ram(VR_NO_PERSONA), ram(VR_EVENTOS));
         $display("entradas=%0d salidas=%0d alarma=%02h  en zona=%0d  manchas=%0d",
                  ram(VR_ENTRADAS), ram(VR_SALIDAS), ram(VR_ALARMA), ram(VR_EN_ZONA), ram(VR_NBLOBS));
-        $display("red binaria: Zbb=%0d ciclos, RV32IM=%0d ciclos (aceleracion x%0d.%02d)",
+        $display("red binaria: con cpop=%0d ciclos, sin cpop=%0d ciclos (aceleracion x%0d.%02d)",
                  ram(VR_BENCH_X), ram(VR_BENCH_R), ram(VR_BENCH_R) / ram(VR_BENCH_X),
                  (ram(VR_BENCH_R) * 100 / ram(VR_BENCH_X)) % 100);
         $display("ciclos del ultimo cuadro=%0d  maximo=%0d  (un cuadro de la camara simulada = %0d ciclos)",
@@ -263,7 +280,11 @@ module tb_vigia;
         revisar(camara.regs[8'h13] == 8'hE0,                   "SCCB: COM8 = 0xE0 (exposicion fija)");
         revisar(ram(VR_CLASE_PRUEBA) == {VIG_PRUEBA_CLASE[7:0], VIG_PRUEBA_CLASE[7:0]} &&
                 VIG_PRUEBA_CLASE == 0,                         "red: silueta de prueba = persona en las 2 versiones");
-        revisar(ram(VR_BENCH_X) < ram(VR_BENCH_R),             "red: con Zbb mas rapida que RV32IM");
+        revisar(ram(VR_BENCH_X) < ram(VR_BENCH_R),             "red: con cpop mas rapida que contando por software");
+        revisar(ram(VR_AUTOPRUEBA) == 3 && VIG_PRUEBA_PERSONAS == 3, "red: cuerpo completo, medio cuerpo y busto = persona");
+        revisar(reaprendidos_mov == 1,                         "camara movida: se volvio a aprender el fondo");
+        revisar(fg_mov < 50,                                   "camara movida: el fondo nuevo ya no sale como silueta");
+        revisar(eventos_mov == 0 && alarma_mov == 0,           "camara movida: ni eventos ni alarma");
         revisar(eventos_perro == 0,                            "perro: ningun evento");
         revisar(alarma_perro == 0,                             "perro: sin alarma");
         revisar(no_persona_perro > 0 && personas_perro == 0,   "perro: clasificado como no persona");
@@ -274,6 +295,7 @@ module tb_vigia;
         revisar((ram(VR_ALARMA) >> 5) & 1,                     "persona: motivo cruce prohibido");
         revisar(ram(VR_EVENTOS) == 3,                          "eventos: entrada, cruce y zona");
         revisar(ram(VR_EN_ZONA) == 1,                          "persona: 1 persona en la zona");
+        revisar(ram(VR_VISTAS) == 1 && dut.regs_vision.hud_personas == 4'd1, "voto entre cuadros: 1 persona confirmada a la vista");
         revisar(dut.regs_vision.letrero == 2'd3,               "monitor: letrero INTRUSO parpadeando");
         revisar(dut.regs_vision.colores[1:0] == 2'd2,          "monitor: recuadro rojo sobre la persona");
         revisar(hex == 24'h010011,                             "displays: entradas 01, salidas 00, zona 1, manchas 1");

@@ -1,0 +1,10 @@
+=== Cargador de programas: el procesador corre otro programa ===
+  ok    el primer programa corre: LED = 0x155
+  ok    con el cargador detenido el SoC queda en reinicio
+  ok    las palabras del programa nuevo quedaron en la memoria
+        programa de demostracion: 37 instrucciones
+  ok    displays: 0 1 1 2 3 5 8 D 15 22 37 59 90 E9 (Fibonacci)
+  ok    LED: la luz corre hasta el LED9 y regresa
+  ok    la PC lee los LED y los displays por JTAG
+  ok    el programa sigue corriendo
+PRUEBAS: 7  ERRORES: 0

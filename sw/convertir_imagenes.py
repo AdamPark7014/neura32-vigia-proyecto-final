@@ -1,5 +1,5 @@
 """
-Convierte las imagenes que guarda tb_vigia (tb/salidas/*.ppm y *.pgm, en texto)
+Convierte las imagenes que guardan tb_vigia y tb_vision (tb/salidas/*.ppm y *.pgm, en texto)
 a PNG en docs/img para el README.
 
 Uso:  python sw/convertir_imagenes.py
@@ -28,7 +28,7 @@ def leer_pnm(ruta):
         img.putdata(datos)
     return img
 
-for nombre, escala in (("vga_vigia.ppm", 1), ("mascara_80x60.pgm", 8), ("video_160x120.pgm", 4)):
+for nombre, escala in (("vga_vigia.ppm", 1), ("vga_color.ppm", 1), ("mascara_80x60.pgm", 8), ("video_160x120.pgm", 4)):
     ruta = os.path.join(origen, nombre)
     if not os.path.exists(ruta):
         continue

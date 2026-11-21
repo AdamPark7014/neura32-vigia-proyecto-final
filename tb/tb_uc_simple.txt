@@ -1,0 +1,30 @@
+=== Unidad de control: recorrido por tipo de instruccion ===
+  ok    FETCH: avanza el PC y carga la instruccion
+  ok    tipo R: DECODE
+  ok    tipo R: EXEC_R con rs2, alu_op = funct3
+  ok    tipo R: WRITEBACK escribe el resultado de la ALU
+  ok    tipo R: regresa a FETCH (4 ciclos)
+  ok    tipo I: EXEC_R con el inmediato
+  ok    carga: MEM_ADDR calcula la direccion
+  ok    carga: MEM_READ guarda el dato leido
+  ok    carga: WRITEBACK escribe el dato de la memoria
+  ok    almacenamiento: MEM_ADDR
+  ok    almacenamiento: MEM_WRITE escribe la memoria
+  ok    almacenamiento: regresa a FETCH sin write-back
+  ok    salto que no se cumple: el PC no cambia
+  ok    salto que no se cumple: 3 ciclos
+  ok    salto que se cumple: carga el destino
+  ok    alto que se cumple: JUMP_WAIT lee la instruccion del destino
+  ok    jal: salta y guarda la direccion de regreso
+  ok    divu: arranca el divisor en DECODE
+  ok    divu: EXEC_DIV espera
+  ok    divu: sigue esperando mientras ready = 0
+  ok    divu: al terminar guarda el resultado del divisor
+  ok    divu: WRITEBACK
+  ok    cpop: no usa el divisor
+  ok    cpop: EXEC_R
+  ok    opcode que no existe: se marca
+  ok    opcode que no existe: no hace nada
+  ok    ecall: el procesador se detiene
+  ok    ecall: se queda detenido
+PRUEBAS: 28  ERRORES: 0

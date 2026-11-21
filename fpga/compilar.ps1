@@ -5,11 +5,12 @@
 .DESCRIPTION
   Corre el flujo completo (sintesis, ajuste, ensamblado y analisis de tiempos) del proyecto vigia.qpf
   y deja en RESUMEN.txt los elementos logicos, registros, bits de memoria, multiplicadores, pines y la
-  frecuencia maxima del reloj de 25 MHz. La ROM se llena con programa_vigia.txt (formato de instrucciones.txt de la
-  clase), que escribe tb/generar_rom.v al correr simular.ps1.
+  frecuencia maxima del reloj de 25 MHz. La memoria de programa se llena con programa_vigia.txt (una
+  instruccion en hexadecimal por renglon, como programa_ab_c.txt de la clase), que escribe
+  tb/generar_rom.v al correr simular.ps1.
 
-  Correr desde una terminal normal de Windows. Desde la app de escritorio de Claude Windows bloquea
-  ip-catalog.exe ("Una directiva de Control de aplicaciones bloqueo este archivo") y Quartus no elabora.
+  quartus.ini (skip_ipcatalog_init=on) evita que Quartus abra el catalogo de IP, que el Control
+  inteligente de aplicaciones de Windows bloquea.
 
 .PARAMETER Grabar
   Despues de compilar, programa la DE10-Lite por USB-Blaster (volatil: se pierde al apagar la placa).
@@ -29,6 +30,7 @@ if (-not (Test-Path "$raiz\programa_vigia.txt")) { throw "Falta programa_vigia.t
 
 Push-Location $raiz
 try {
+    Copy-Item ..\hdl\vision\font8x16.txt font8x16.txt -Force     # la fuente de letras del monitor
     Write-Host 'Compilando (tarda unos minutos)...' -ForegroundColor Cyan
     & "$quartus\quartus_sh.exe" --flow compile vigia -c vigia *> compilar.log
     $ok = Select-String -Path compilar.log -Pattern 'Quartus Prime Full Compilation was successful' -Quiet

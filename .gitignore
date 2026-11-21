@@ -2,7 +2,8 @@
 build/
 *.vvp
 tb/salidas/
-font8x16.txt
+/font8x16.txt
+/fpga/font8x16.txt
 
 # Quartus
 fpga/db/

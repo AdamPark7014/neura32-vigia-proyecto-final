@@ -1,286 +1,563 @@
-# NEURA-32 Vigía: vigilancia perimetral inteligente sobre un procesador RISC-V de 32 bits
+# NEURA-32 Vigía: vigilancia perimetral inteligente sobre el RISC-V de la clase
 
-**Laboratorio de Arquitecturas Computacionales · Proyecto final**
+**Laboratorio de Arquitecturas Computacionales (LA116) · Proyecto final**
 **Equipo:** Roberto Orozco Ramírez (ID 184595) · Adam Del Pozo Ontiveros (ID 185611)
-**Plataforma:** Verilog-2005 · Icarus Verilog y Active-HDL 17 SE · Quartus Prime 24.1 Lite · DE10-Lite (MAX 10 10M50DAF484C7G) · cámara OV7670 · monitor VGA
+**Plataforma:** Verilog-2005 · Icarus Verilog y Active-HDL · Quartus Prime 24.1 Lite · DE10-Lite (MAX 10 10M50DAF484C7G) · cámara OV7670 · monitor VGA
 
 ---
 
 ## 1. Planteamiento del problema y justificación
 
-Las cámaras de vigilancia comerciales avisan cuando «algo se mueve» en una zona. La mayoría de esas
-alarmas son falsas: una sombra, un cambio de luz, una mascota o un objeto que rueda. Los equipos de gama
-alta resuelven esto con un clasificador que decide si el movimiento es una persona antes de avisar
-(detección de intrusión y cruce de línea con filtro de personas).
+Las cámaras de vigilancia comerciales avisan cuando «algo se mueve». La mayoría de esas alarmas son falsas:
+una sombra, un cambio de luz, una mascota. Los equipos de gama alta lo resuelven con un clasificador que
+decide si lo que se mueve es una persona antes de avisar (intrusión en zona y cruce de línea con filtro de
+personas).
 
-Este proyecto construye esa función completa sobre el procesador RISC-V que se armó en las prácticas:
+Este proyecto construye esa función completa sobre **el procesador RISC-V multiciclo que se armó en clase**
+(`riscv_ab_c`, el que calcula `(a + b) · c`), ampliado paso a paso hasta poder correr el programa de
+vigilancia:
 
-* una cámara OV7670 mira una puerta o un pasillo y el monitor VGA muestra el video;
+* una cámara OV7670 mira una puerta o un pasillo y el monitor VGA muestra el video a color;
 * el hardware separa lo que se mueve del fondo y entrega la **silueta** de cada objeto;
-* el procesador etiqueta cada silueta, la recorta y la pasa por una **red neuronal binaria** que decide
-  si es **persona**, **objeto o animal**, o **ruido**;
-* solo si es una persona aplica las **reglas perimetrales**: entrar a una zona prohibida y quedarse, o
-  cruzar una línea virtual en el sentido prohibido. Entonces enciende la alarma, dibuja un recuadro rojo y
-  el letrero «INTRUSO», y cuenta entradas y salidas en los displays.
+* el procesador etiqueta cada silueta, la recorta y la pasa por una **red neuronal binaria** que decide si es
+  **persona** (de cuerpo completo, de medio cuerpo o solo el busto), **objeto o animal**, o **ruido**;
+* solo si es una persona aplica las **reglas perimetrales**: entrar a una zona prohibida y quedarse, o cruzar
+  una línea virtual en el sentido prohibido. Entonces enciende la alarma, pinta el recuadro en rojo con el
+  letrero «INTRUSO» y cuenta entradas y salidas en los displays.
 
-Es una aplicación real (videovigilancia con filtro de falsas alarmas) que usa todos los bloques de las
-prácticas: banco de registros (P1), ALU de 32 bits (P2 y P3), ROM y RAM (P4), unidad de control (P5) y el
-camino de datos integrado con E/S mapeada a memoria (P6). Además implementa tres de las ampliaciones que
-propone la guía: la extensión M, el camino de datos segmentado en cinco etapas con adelantamiento y una
-extensión del repertorio propia.
+Todo está escrito en Verilog: el procesador, la visión, el monitor y también el ensamblador con el que se
+escriben los programas.
 
-## 2. Arquitectura del sistema
+## 2. Del RISC-V de la clase a NEURA-32, paso a paso
 
-### 2.1 Diagrama de bloques
+### 2.1 Punto de partida: `riscv_ab_c`
+
+Los archivos de la clase están sin tocar en [`docs/base-clase/`](docs/base-clase): `riscv_ab_c.v`,
+`uc_simple.v`, `alu_riscv.v`, `decoder.v`, `regfile.v`, `pipo_register.v`, `rom.v`, `ram.v` y
+`programa_ab_c.txt`.
 
 ```
-                     ┌──────────────── tubería de visión (hardware, sin procesador) ─────────────────┐
- OV7670 ──D[7:0]────►│ captura_ov7670 ──► gris 4 bits ─────────────────────────► memoria de video ───┐ │
-        HREF VSYNC   │   (sincronizador     promedio 8x8 ──► fondo_mascara ──► máscara (2 bancos) ─┐ │ │
-        PCLK         │    de 2 FF)          (80 x 60)         F += (I-F)/2^α   máscara VGA (1 bit) ─┼─┤ │
-   ▲ XCLK 25 MHz     └────────────────────────────────────────────────────────────────────────────┼─┼─┘
-   ▲ SCCB (SIOC/SIOD) por GPIO                                                                    │ │
-   │                                                                                              │ ▼
- ┌─┴──────────────────────────── NEURA-32 (RV32IM + Zbb + clase + Zicsr + Xneura) ─────────────┐  │ vga_dibujo
- │  IF ──────► ID ─────────► EX ─────────────────► MEM ─────────► WB                            │  │ (zona, línea,
- │  PC         unidad_control  adelantamiento        acceso a memoria  banco de registros       │  │  recuadros,
- │  ROM 16 KB  control_alu     alu_riscv (128 ops)   RAM 16 KB          (escritura)              │  │  INTRUSO)
- │  (síncrona) generador inm.  divisor iterativo     máscara (lectura)                           │  │     │
- │             banco (lectura) unidad_saltos, CSR    periféricos                                 │◄─┘     ▼
- │                       unidad_riesgos: carga-uso, saltos, división, ecall                      │      VGA
- └──────┬──────────────────────────────────────────────────────────────────────────────────────┘
-        └──► LEDR · HEX5..HEX0 · registros de dibujo (zona, línea, 8 recuadros, letrero)
+            ┌──────────────── uc_simple (máquina de estados) ────────────────┐
+            │  FETCH → DECODE → EXEC_R / EXEC_MUL → WRITEBACK                 │
+            │                 → MEM_ADDR → MEM_READ / MEM_WRITE               │
+            └── pc_en · alu_src · alu_op · mem_read · mem_write · reg_write ──┘
+  ┌────┐   ┌──────┐   ┌────┐   ┌─────┐   ┌─────────┐   ┌─────┐   ┌──────┐
+  │ PC ├──►│ IMEM ├──►│ IR ├──►│ DEC ├──►│   RF    ├──►│ ALU ├──►│ DMEM │
+  └────┘   │ rom  │   └────┘   └─────┘   │ regfile │   └──┬──┘   │ ram  │
+   PC + 4  └──────┘                      └────▲────┘      │      └──┬───┘
+                                              └── wdata ◄─┴─────────┘
 ```
 
-Todo el sistema trabaja con **un solo reloj de 25 MHz** (el reloj de píxel del VGA). La cámara se configura
-para que su reloj de píxel PCLK sea lento (6.25 MHz) y la FPGA lo muestrea con un sincronizador de dos
-flip-flops y un detector de flanco. Así no hay cruces de dominio de reloj, que es el problema más común
-de los proyectos con esta cámara.
+Es un procesador **multiciclo**: cada instrucción pasa por varias fases y una máquina de estados prende las
+señales de cada fase. Su programa son dos instrucciones leídas de un archivo de texto en hexadecimal:
 
-### 2.2 El procesador NEURA-32
+```
+00208233      add x4, x1, x2      x4 = a + b
+023212B3      mul x5, x4, x3      x5 = (a + b) · c
+```
 
-| Bloque | Práctica | Archivo | Qué hace |
+Lo que **no** podía hacer: saltar, llamar subrutinas, cargar constantes, leer o escribir bytes, dividir,
+hablar con el exterior, ni usar más de las 8 operaciones que caben en `alu_op`.
+
+### 2.2 Las reglas que se respetaron
+
+1. **El formato de las instrucciones no cambia.** Todas miden 32 bits y los campos están siempre en el mismo
+   lugar, que es lo que separa el `decoder` de la clase:
+
+   ```
+    31        25 24     20 19     15 14      12 11      7 6          0
+   ┌────────────┬─────────┬─────────┬──────────┬─────────┬────────────┐
+   │ funct7 (7) │ rs2 (5) │ rs1 (5) │ funct3(3)│ rd (5)  │ opcode (7) │  tipo R
+   ├────────────┴─────────┼─────────┼──────────┼─────────┼────────────┤
+   │ inmediato (12)       │ rs1     │ funct3   │ rd      │ opcode     │  tipo I (y cargas)
+   ├────────────┬─────────┼─────────┼──────────┼─────────┼────────────┤
+   │ inm[11:5]  │ rs2     │ rs1     │ funct3   │ inm[4:0]│ opcode     │  tipo S (almacenar)
+   │ inm[12|10:5]│ rs2    │ rs1     │ funct3   │inm[4:1|11]│ opcode   │  tipo B (saltos)
+   ├────────────┴─────────┴─────────┴──────────┼─────────┼────────────┤
+   │ inmediato (20)                            │ rd      │ opcode     │  tipos U y J
+   └───────────────────────────────────────────┴─────────┴────────────┘
+   ```
+
+2. **`funct3` siempre mide 3 bits** y es directamente la operación de la ALU (`alu_op = funct3`): 8
+   operaciones por tabla.
+3. **Para tener más de 8 operaciones no se alarga `funct3`: se agregan opcodes del mismo tipo.** Las
+   instrucciones tipo R tienen tres opcodes (`OP_R1`, `OP_R2`, `OP_R3`) y las tipo I dos (`OP_I1`, `OP_I2`).
+   El campo `funct7` conserva sus 7 bits en el formato, pero el procesador no lo necesita para decidir.
+4. **Mismos bloques y mismos nombres que la base:** `PC`, `IMEM`, `IR`, `DEC`, `UC`, `RF`, `ALU` y `DMEM`,
+   hechos con `pipo_register`, `rom`, `ram`, `regfile` y `decoder`. Reinicio asíncrono activo en bajo, como en
+   clase.
+5. **Las instrucciones del programa vienen de un `.txt` en hexadecimal**, una por renglón, que la memoria de
+   programa lee con `$readmemh` igual que `programa_ab_c.txt`.
+6. **Solo existe lo que algún programa del proyecto usa.** No hay instrucciones ni bloques de adorno.
+
+### 2.3 Las etapas
+
+| Etapa | Qué se le agregó a la base | Dónde | Prueba que lo demuestra |
 |---|---|---|---|
-| Contador de programa | P1 | `nucleo_neura32.v` | PC + 4, destino de salto, detención |
-| Banco de registros | P1 | `banco_registros.v` | 32 × 32 bits, x0 = 0, 2 lecturas y 1 escritura, el valor nuevo se ve en el mismo ciclo |
-| ALU | P2, P3 | `alu_riscv.v` | la ALU de 128 operaciones de la Práctica 3 con banderas C, O, Z, N |
-| ROM de programa | P4 | `rom_instrucciones.v` | 4096 palabras, síncrona, doble puerto (instrucciones y datos), `$readmemh` |
-| RAM de datos | P4 | `ram_datos.v` | 4096 palabras, síncrona, escritura por byte |
-| Accesos parciales | P4 | `unidad_acceso_memoria.v` | `lb lh lw lbu lhu sb sh sw`, extensión de signo, accesos no alineados |
-| Generador de inmediato | P5 | `generador_inmediato.v` | formatos I, S, B, U, J |
-| Unidad de control | P5 | `unidad_control.v` | `case (opcode)` con `case` anidados de funct3, funct7 e imm12 |
-| Control de la ALU | P5 | `control_alu.v` | segundo nivel: grupo + funct3 + funct7 + rs2 → `alu_op` |
-| Decisión de salto | P5 | `unidad_saltos.v` | la ALU resta; Z, N⊕O y C deciden `beq bne blt bge bltu bgeu` |
-| Adelantamiento | P6 | `unidad_adelantamiento.v` | MEM→EX y WB→EX |
-| Riesgos | P6 | `unidad_riesgos.v` | carga-uso (1 ciclo), salto tomado (anula 2), división (congela), `ecall` |
-| Divisor | P6 | `divisor_iterativo.v` | división con restauración, 34 ciclos, casos especiales de la norma |
-| CSR | P6 | `registros_csr.v` | `cycle`, `instret`, `time` (64 bits), `mscratch`, `misa`, banderas de Xneura |
-| Periféricos | P6 | `perifericos.v`, `vision/registros_vision.v` | LED, interruptores, HEX, botones, consola, cámara, visión, dibujo |
+| 0 | Nada: el programa `(a + b) · c` de la clase corre igual en el procesador final | `riscv_neura.v` | `tb_programa_ab_c` |
+| 1 | `alu_op = funct3` y `case (opcode)` en la ALU: las 8 operaciones de la clase ya se pueden pedir desde una instrucción (`OP_R1`) y con inmediato (`OP_I1`) | `alu_riscv.v`, `uc_simple.v` | `tb_uc_simple`, `tb_prueba_isa` |
+| 2 | Segunda tabla tipo R (`OP_R2`, `OP_I2`): `sub slt sltu sra xnor min minu max` | `alu_riscv.v` | `tb_prueba_isa` |
+| 3 | Saltos: inmediatos S, B, U y J en el decodificador, estados `EXEC_BR` y `JUMP_WAIT`, `lui`, `jal`, `jalr` y los seis saltos condicionales | `decoder.v`, `uc_simple.v`, `riscv_neura.v` | `tb_uc_simple`, `tb_prueba_isa` |
+| 4 | Memoria: registros `ALUOUT` y `MDR`, RAM por bytes (`lb lh lbu lhu sb sh`) con cuatro `ram` de la clase y lectura de tablas desde la memoria de programa | `riscv_neura.v` | `tb_prueba_isa` |
+| 5 | Tercera tabla tipo R (`OP_R3`): `divu` y `remu` con un divisor de varios ciclos (estado `EXEC_DIV`) y `cpop abs sgt clamp` para la red neuronal | `alu_riscv.v`, `divider.v`, `uc_simple.v` | `tb_prueba_isa`, `tb_red_neuronal` |
+| 6 | Entradas y salidas mapeadas en memoria (LED, interruptores, displays, botones, contador de ciclos), `ecall` para detenerse (estado `HALT`) y memoria de programa de 4096 instrucciones | `soc_neura32.v`, `perifericos.v` | `tb_red_neuronal` |
+| 7 | Cargador de programas por el cable USB-Blaster: otro `.txt` sin volver a compilar | `jtag_loader.v`, `rom.v` | `tb_cargador` |
+| 8 | Visión: cámara, fondo y máscara, monitor VGA y vista en la PC | `hdl/vision/` | `tb_vision` |
+| 9 | El programa de vigilancia | `prog/programa_vigia.vh` | `tb_vigia` |
 
-**Pipeline de cinco etapas.** IF, ID, EX, MEM y WB, con adelantamiento desde MEM y WB. Una carga seguida de
-una instrucción que usa su resultado detiene un ciclo (con el parámetro `ADELANTAR_CARGAS = 1` el dato se
-adelanta desde MEM y no hay detención). Los saltos se resuelven en EX con las banderas de la ALU y, si se
-toman, se anulan las dos instrucciones que se habían traído. Las memorias son síncronas, como la ROM de la
-Práctica 4, para que Quartus las coloque en bloques M9K: la ROM entrega la instrucción en ID (su registro de
-salida es el registro IF/ID) y la RAM entrega el dato en MEM con la dirección que llega desde EX.
+**Etapa 1. La ALU decide con el opcode y el `funct3`.** En la base, la unidad de control escogía la
+operación (`ALU_ADD` o `ALU_MUL`) y la ALU ignoraba el opcode. Ahora la unidad de control pasa el `funct3`
+tal cual y la ALU primero mira de qué tipo es la instrucción:
 
-**Unidad de control en dos niveles** (Práctica 5). El primer nivel genera las señales de la tabla de control:
+```verilog
+always @(*) begin
+    case(opcode)
+        //---------------- tabla 1: la de la clase ----------------
+        OP_R1, OP_I1: begin
+            case(alu_op)                    // alu_op = funct3
+                ALU_ADD: begin result = sum; carry_flag = sum_ext[32]; ovf_flag = ovf_add; end
+                ALU_MUL: result = mul_out;
+                ALU_AND: result = A & B;
+                ...
+            endcase
+        end
+        //---------------- tabla 2 ----------------
+        OP_R2, OP_I2: begin
+            case(alu_op)
+                ALU_SUB: begin result = sub; carry_flag = sub_ext[32]; ovf_flag = ovf_sub; end
+                ALU_SLT: result = lt_s ? 32'd1 : 32'd0;
+                ...
+```
 
-| Instrucción | RegWrite | ALUSrc | MemRead | MemWrite | MemToReg | Branch | Jump | ALUOp |
-|---|---|---|---|---|---|---|---|---|
-| tipo R (`add`, `mul`, `andn`, ...) | 1 | 0 | 0 | 0 | 0 | 0 | 0 | OP |
-| tipo I (`addi`, `srai`, `clz`, ...) | 1 | 1 | 0 | 0 | 0 | 0 | 0 | OPIMM |
-| `lw` y demás cargas | 1 | 1 | 1 | 0 | 1 | 0 | 0 | suma |
-| `sw` y demás almacenamientos | 0 | 1 | 0 | 1 | 0 | 0 | 0 | suma |
-| `beq` y demás saltos condicionales | 0 | 0 | 0 | 0 | 0 | 1 | 0 | resta |
-| `jal`, `jalr` | 1 | 0 | 0 | 0 | 0 | 0 | 1 | suma |
-| `lui` | 1 | 1 | 0 | 0 | 0 | 0 | 0 | pasa B |
-| `nota`, `passb`, `sla` (clase) | 1 | 0 | 0 | 0 | 0 | 0 | 0 | CLASE |
+**Etapa 3. Saltos.** El `decoder` de la clase solo sacaba `imm_i`; se le agregaron `imm_s`, `imm_b`, `imm_u`
+e `imm_j`. Como el PC ya avanzó cuando la instrucción está en `IR`, un registro nuevo (`PCI`) guarda el PC de
+la instrucción para calcular el destino. En `EXEC_BR` la ALU compara `rs1` con `rs2` (entrega 1 si el salto
+se cumple) y, si el PC cambia, `JUMP_WAIT` deja un ciclo para que la memoria de programa lea el destino.
 
-El segundo nivel (`control_alu`) combina ALUOp con funct3, funct7 y el campo rs2 para elegir una de las 128
-operaciones de la ALU. Así el control principal no depende de todos los bits de la instrucción.
+**Etapa 4. Memoria.** El resultado de la ALU y el dato leído ahora se guardan en dos `pipo_register`
+(`ALUOUT` y `MDR`), así la escritura al banco de registros usa valores que ya no cambian. La RAM de datos
+son cuatro `ram` de la clase de 8 bits, una por byte, para poder escribir un solo byte (`sb`) o media
+palabra (`sh`) y para que Quartus las coloque en bloques M9K.
 
-### 2.3 Repertorio de instrucciones
+**Etapa 5. División y la red neuronal.** Un divisor de 32 bits no cabe en un ciclo de 40 ns, así que
+`divider.v` divide con restas y corrimientos, un bit por ciclo, y la unidad de control espera en
+`EXEC_DIV` hasta que avisa `ready`. `cpop` (cuenta los bits en 1) se resuelve dentro de la ALU con un árbol
+de sumas; junto con `xnor` es toda la aritmética de una neurona binaria.
 
-| Grupo | Instrucciones |
-|---|---|
-| RV32I | `lui auipc jal jalr beq bne blt bge bltu bgeu lb lh lw lbu lhu sb sh sw addi slti sltiu xori ori andi slli srli srai add sub sll slt sltu xor srl sra or and fence ecall ebreak` |
-| RV32M | `mul mulh mulhsu mulhu div divu rem remu` |
-| Zbb (de la ROM de la clase) | `andn orn xnor min minu max maxu rol ror rori clz ctz cpop sext.b sext.h zext.h rev8` |
-| Propias de la clase (custom-0) | `nota rd, rs1` (= ~rs1) · `passb rd, rs2` (= rs2) · `sla rd, rs1, rs2` (corrimiento a la izquierda) |
-| Zicsr / Zicntr | `csrrw csrrs csrrc csrrwi csrrsi csrrci`, contadores `cycle`, `time`, `instret` |
-| Xneura (custom-1) | `funct7` es directamente uno de los 128 códigos de la ALU de la Práctica 3; `funct3[0]` guarda las banderas y `funct3[1]` usa el acarreo guardado (aritmética de precisión múltiple) |
+### 2.4 Repertorio de instrucciones
 
-Las codificaciones son las del manual de RISC-V y las de la ROM de instrucciones de la clase
-(`Entregas/rom-instrucciones-riscv/src/instrucciones.txt`); el testbench `tb_instrucciones_clase` ejecuta
-esa misma ROM en el procesador.
+`alu_op` es el `funct3` de la instrucción. La tabla la escoge el opcode:
 
-### 2.4 Mapa de memoria
+| `funct3` | `OP_R1` / `OP_I1` (la de la clase) | `OP_R2` / `OP_I2` | `OP_R3` | `OP_BRANCH` |
+|---|---|---|---|---|
+| `000` | `add` | `sub` | `divu` (divisor) | `beq` |
+| `001` | `mul` | `slt` | `remu` (divisor) | `bne` |
+| `010` | `and` | `sltu` | `cpop` | |
+| `011` | `or` | `sra` | `abs` | |
+| `100` | `xor` | `xnor` | `sgt` | `blt` |
+| `101` | `nota` (~A) | `min` | `clamp` | `bge` |
+| `110` | `sll` | `minu` | | `bltu` |
+| `111` | `srl` | `max` | | `bgeu` |
+
+| Opcode | Valor | Instrucciones |
+|---|---|---|
+| `OP_R1` | `0110011` | tabla 1 entre dos registros |
+| `OP_R2` | `0111011` | tabla 2 entre dos registros |
+| `OP_R3` | `1011011` | tabla 3 |
+| `OP_I1` | `0010011` | tabla 1 con inmediato: `addi andi ori xori slli srli` |
+| `OP_I2` | `0011011` | tabla 2 con inmediato: `slti sltiu srai` |
+| `OP_LOAD` | `0000011` | `lb lh lw lbu lhu` (el `funct3` dice el tamaño y el signo) |
+| `OP_STORE` | `0100011` | `sb sh sw` |
+| `OP_BRANCH` | `1100011` | `beq bne blt bge bltu bgeu` |
+| `OP_LUI` | `0110111` | `lui` |
+| `OP_JAL` / `OP_JALR` | `1101111` / `1100111` | `jal`, `jalr` (subrutinas) |
+| `OP_SYSTEM` | `1110011` | `ecall` (fin del programa) |
+
+Son **49 instrucciones** con 12 opcodes. `OP_R1` es exactamente la tabla de la clase y por eso
+`programa_ab_c.txt` corre sin cambiarle un bit.
+
+### 2.5 La unidad de control
+
+```
+                       ┌──────────────────────────────────────────────────────────┐
+                       ▼                                                          │
+   reset ──► FETCH ──► DECODE ──┬─ R1 R2 R3 I1 I2 lui ──► EXEC_R ─────────────► WRITEBACK
+                                ├─ divu remu ───────────► EXEC_DIV (espera) ──► WRITEBACK
+                                ├─ carga ──► MEM_ADDR ──► MEM_READ ───────────► WRITEBACK
+                                ├─ almacenar ► MEM_ADDR ► MEM_WRITE ──► FETCH
+                                ├─ saltos, jal, jalr ───► EXEC_BR ──┬─ no se cumple ──► FETCH
+                                │                                   └─ PC nuevo ──► JUMP_WAIT ──► FETCH
+                                └─ ecall ──► HALT
+```
+
+| Instrucción | Recorrido | Ciclos |
+|---|---|---|
+| tipo R, tipo I, `lui` | FETCH, DECODE, EXEC_R, WRITEBACK | 4 |
+| carga | FETCH, DECODE, MEM_ADDR, MEM_READ, WRITEBACK | 5 |
+| almacenamiento | FETCH, DECODE, MEM_ADDR, MEM_WRITE | 4 |
+| salto que no se cumple | FETCH, DECODE, EXEC_BR | 3 |
+| salto que se cumple, `jal`, `jalr` | FETCH, DECODE, EXEC_BR, JUMP_WAIT | 4 |
+| `divu`, `remu` | FETCH, DECODE, EXEC_DIV (32 ciclos del divisor), WRITEBACK | 36 |
+
+Las salidas dependen solo del estado y de la instrucción que está en `IR` (máquina de Moore), igual que en
+la `uc_simple` original. Las señales nuevas son `pc_src` (PC + 4, PC + inmediato o resultado de la ALU),
+`result_src` de 2 bits (ALU, memoria o dirección de regreso), `ir_en`, `aluout_en`, `mdr_en`, `div_start`,
+`div_sel`, `halted` e `illegal`.
+
+### 2.6 El camino de datos final
+
+```
+                  ┌──────────────────────────── uc_simple ────────────────────────────┐
+                  │ opcode, funct3 ──► estado ──► señales de control                  │
+                  └─────────▲──────────────────────────────────────────────────────────┘
+                            │ take (la ALU dice si el salto se cumple) · div_ready
+ ┌────┐  ┌───────┐  ┌────┐  ┌─────┐  ┌─────────┐      ┌─────┐   ┌────────┐   ┌─────────────┐
+ │ PC ├─►│ IMEM  ├─►│ IR ├─►│ DEC ├─►│   RF    ├─A───►│ ALU ├──►│ ALUOUT ├──►│ DMEM0..3    │
+ └─▲──┘  │ 4096  │  └────┘  └──┬──┘  │ regfile ├─B─┬─►│     │   └───┬────┘   │ 4 × ram 8 b │
+   │     │ instr.│  ┌────┐     │inm  └────▲────┘   │  └─────┘       │        └──────┬──────┘
+   │     └───▲───┘  │PCI │     └──────────┼────────┘  ┌─────┐       │   entradas y  │
+   │         │      └─┬──┘                │           │ DIV ├───────┤   salidas ◄───┤
+   │  tablas y pesos  │ PC de la          │           └─────┘       │               ▼
+   │  (lw desde 0x0…) │ instrucción       │                         │           ┌───────┐
+   │                  ▼                   └──────── wdata ◄─────────┴───────────┤  MDR  │
+   └── PC + 4 · PCI + inmediato · rs1 + inmediato                               └───────┘
+```
+
+### 2.7 Mapa de memoria
 
 | Dirección | Contenido |
 |---|---|
-| `0x0000_0000 – 0x0000_3FFF` | ROM de programa (también se lee como datos: tablas y pesos de la red) |
-| `0x1000_0000 – 0x1000_3FFF` | RAM de datos: variables, manchas, pistas, etiquetas, pila |
-| `0x2000_0000 – 0x2000_12BF` | máscara de movimiento de 80 × 60, un byte por píxel (solo lectura) |
+| `0x0000_0000 – 0x0000_3FFF` | memoria de programa: instrucciones y, después, tablas y pesos de la red (se leen con `lw`) |
+| `0x1000_0000 – 0x1000_3FFF` | memoria de datos: variables, manchas, pistas, etiquetas y pila |
+| `0x2000_0000 – 0x2000_12BF` | máscara de movimiento de 80 × 60, un byte por celda (solo lectura) |
 | `0xFFFF_0000` LEDS · `+04` SW · `+08` HEX · `+0C` KEY · `+10` TICKS · `+14` CONSOLA · `+18` CONTROL · `+24` PLATAFORMA | periféricos básicos |
-| `0xFFFF_0040` CAM_SAL · `+44` CAM_ENT · `+48` VIS_CTRL · `+4C` VIS_EST · `+50` VIS_FG | cámara (SCCB por GPIO) y visión |
+| `0xFFFF_0040` CAM_SAL · `+44` CAM_ENT · `+48` VIS_CTRL · `+4C` VIS_EST · `+50` VIS_FG | cámara (SCCB por software) y visión |
 | `0xFFFF_0054` ZONA · `+58` LINEA · `+5C` LETRERO · `+60..+7C` CAJA0..7 · `+80` COLORES | lo que se dibuja sobre el video |
 
-### 2.5 La tubería de visión
+`TICKS` es un contador de ciclos: con él el programa mide cuánto tarda (no hacen falta registros
+especiales dentro del procesador).
 
-1. **Captura** (`captura_ov7670.v`). Sincroniza PCLK, HREF, VSYNC y los 8 datos, toma los bytes de
-   luminancia del formato YUYV y produce dos salidas: el video de 320 × 240 con 4 bits de gris para el
-   monitor, y una imagen de 80 × 60 donde cada píxel es el **promedio de un bloque de 8 × 8** (filtro
-   pasa-bajas que también quita el ruido del sensor).
-2. **Fondo y máscara** (`fondo_mascara.v`). Guarda un fondo aprendido F por píxel y lo actualiza con un
-   promedio exponencial F ← F + (I − F)/2^α. Un píxel es silueta si |I − F| supera un umbral. Donde hay
-   alguien parado el fondo aprende cuatro veces más lento, para que una persona quieta no se «borre».
-3. **Doble buffer.** La máscara se escribe en dos bancos: la cámara llena uno mientras el procesador lee el
-   otro. Si el procesador aún no termina, el cuadro se descarta.
-4. **VGA** (`vga_sincronia.v`, `vga_dibujo.v`). 640 × 480 a 60 Hz con los tiempos de la tabla 3-9 y 3-10 del
-   manual de la DE10-Lite. Sobre el video dibuja la silueta en azul, la línea virtual, la zona prohibida, hasta
-   ocho recuadros de color y el letrero «INTRUSO» con una fuente de 8 × 8.
+### 2.8 Los programas: de Verilog a un `.txt` en hexadecimal
 
-## 3. El programa
-
-El programa se escribió **en Verilog**, con funciones que codifican cada instrucción bit a bit según sus
-formatos (`prog/codificador_riscv.vh`: `ADD(rd, rs1, rs2)`, `LW(rd, rs1, imm)`, `XNOR(...)`, `NOTA(...)`...).
-Un generador de dos pasadas (`prog/generador_programa.v`) resuelve las etiquetas y revisa que cada salto quepa
-en su formato. `tb/generar_rom.v` escribe la ROM en `fpga/programa_vigia.txt` con el mismo formato que la ROM de
-instrucciones de la clase, una instrucción comentada por línea:
+Los programas se escriben **en Verilog**, con funciones que codifican cada instrucción bit a bit según su
+formato (`prog/codificador_riscv.vh`: `ADD(rd, rs1, rs2)`, `LW(rd, rs1, inm)`, `XNOR(...)`, `CPOP(...)`).
+Un generador de dos pasadas resuelve las etiquetas y `tb/generar_rom.v` escribe el archivo que lee la
+memoria de programa, una instrucción por renglón con su comentario:
 
 ```
-ffff0437 // 0000: lui s0, 0xffff0
-100004b7 // 0004: lui s1, 0x10000
+ffff0437 // 00000000: lui x8, 0xffff0
+100004b7 // 00000004: lui x9, 0x10000
 ...
-41e3c3b3 // 09c8: xnor t2, t2, t5
-60239393 // 09cc: cpop t2, t2
+0015229b // 000002bc: sltiu x5, x10, 1
 ```
 
-Son **1 318 instrucciones** y 1 254 palabras de tablas (configuración de la cámara, zonas, pesos de la red,
-textos). El programa completo y comentado está en `prog/programa_vigia.vh`.
+| Archivo | Programa | Instrucciones |
+|---|---|---|
+| `docs/base-clase/programa_ab_c.txt` | `(a + b) · c`, el de la clase | 2 |
+| `fpga/programa_demo.txt` | Fibonacci en los displays y un LED que corre | 37 |
+| `fpga/programa_red.txt` | clasificador 3 × 3 con los interruptores | 86 |
+| `fpga/programa_isa.txt` | prueba de todas las instrucciones | 178 |
+| `fpga/programa_vigia.txt` | vigilancia perimetral (el que arranca en la placa) | 1 470 |
 
-### 3.1 Flujo
+**El procesador corre cualquier programa.** Con la placa ya grabada, `cargar_programa.tcl` detiene el
+procesador, escribe otro `.txt` en la memoria de programa por el cable USB-Blaster y lo suelta en la
+dirección 0, sin volver a compilar en Quartus:
 
-1. **Arranque.** Pulso de reset a la cámara por su pin, reinicio de registros por SCCB y lectura de su
-   identificación (PID = 0x76, VER = 0x73): si no responde, el procesador lo indica en los displays. Después
-   escribe la tabla de registros (preescala del reloj, formato YUYV, rango completo) por **SCCB hecho por
-   software**: el procesador mueve las líneas SIOC y SIOD a través de un periférico GPIO.
-2. **Medición de la red** con el CSR `cycle`, con y sin las instrucciones Zbb.
-3. **Exposición fija y fondo.** Después de 2 s congela la exposición, la ganancia y el balance de blancos de
-   la cámara (si cambian solos, todo el cuadro parece moverse) y aprende el fondo vacío.
-4. **Por cada máscara:**
-   * **Etiquetado** de manchas (componentes conexos con 4 vecinos) con relleno por inundación y pila en RAM;
-     el recuadro de cada mancha se calcula con `min` y `max` de Zbb.
+```powershell
+quartus_stp -t cargar_programa.tcl programa_demo.txt
+```
+
+## 3. La visión (hardware, sin procesador)
+
+```
+ OV7670 ──► cam_capture ──brillo──► memoria Y (320 × 240, 6 bits) ───────────────┐
+ 320 × 240     │    └─────color───► memoria UV (160 × 120, 5 + 5 bits) ──────────┤
+ YUV 4:2:2     │                                                                 ▼
+ ~31 cuadros/s ├──brillo──► block_avg (80 × 60) ──► fondo_mascara ──┬──► vga_draw ──► VGA 640 × 480
+               │                                   F += (I − F)/2^α │      ▲
+               │                         máscara (2 bancos) ──► procesador │ zona, línea, recuadros,
+               └──► pc_view ──► JTAG ──► PC                        └───────┘ letreros (registros)
+```
+
+1. **Cámara.** La FPGA le da el reloj (XCLK de 25 MHz, con fase ajustable) y el programa la configura por
+   SCCB: 320 × 240, YUV 4:2:2, PLL × 4 y preescala entre 2, que dan PCLK de 12.5 MHz y unos **31 cuadros por
+   segundo** (los 30 nominales del sensor son con 24 MHz; con los 25 MHz de la placa salen 31).
+2. **Captura** (`cam_capture.v`). PCLK, HREF, VSYNC y los 8 datos se muestrean con el reloj de 50 MHz (4
+   muestras por periodo de PCLK) a través de dos flip-flops; un detector de flanco marca cada byte. Así no
+   hay cruces de reloj sin sincronizar. Separa el brillo (Y) de cada pixel y el color (U, V) de cada pareja.
+3. **Promedio por bloques** (`block_avg.v`). Cada celda de la rejilla de 80 × 60 es el promedio de un
+   bloque de 4 × 4 pixeles: baja la resolución y quita el ruido del sensor.
+4. **Fondo y máscara** (`fondo_mascara.v`). Guarda un fondo aprendido F por celda y lo actualiza con un
+   promedio exponencial F ← F + (I − F)/2^α. Una celda es silueta si |I − F| supera un umbral. Donde hay
+   alguien parado el fondo aprende cuatro veces más lento, para que una persona quieta no se «borre». La
+   máscara se escribe en dos bancos: la cámara llena uno mientras el procesador lee el otro.
+5. **Monitor** (`vga_sincronia.v`, `vga_draw.v`). 640 × 480 a 60 Hz. Convierte YUV a RGB con sumas y
+   corrimientos y trama el resultado (2 × 2) para el DAC de 4 bits de la placa. Encima dibuja el contorno de
+   la silueta de cada persona, la línea virtual, la zona prohibida, hasta ocho recuadros con su letrero
+   (`PERSONA` en verde, `INTRUSO` en rojo, `OBJETO` en gris, con una fuente de 8 × 16), el letrero grande de
+   alarma y una barra de estado con las personas a la vista y los eventos.
+6. **Vista en la PC** (`pc_view.v`, `fpga/ver_vigia.py`). Cuando no hay monitor, el mismo video sale por el
+   cable USB-Blaster (JTAG): 160 × 120 entrelazado, con la máscara y los recuadros, y una ventana en la
+   computadora dibuja lo mismo que el monitor.
+
+![Lo que muestra el monitor](docs/img/vga_color.png)
+
+*Cuadro del monitor VGA en la simulación de la visión (`tb_vision`). Aquí no hay procesador: el banco de
+pruebas escribe recuadros fijos para probar cada capa de dibujo (video a color, barra de estado, recuadros
+con letrero, contorno de la silueta, zona, línea y letrero de alarma).*
+
+## 4. El programa de vigilancia
+
+`prog/programa_vigia.vh`, comentado instrucción por instrucción.
+
+### 4.1 Flujo
+
+1. **Arranque.** Reinicia la cámara, lee su identificación por SCCB (PID = 0x76, VER = 0x73; si no responde
+   lo avisa en los displays) y le escribe su tabla de registros. El SCCB está hecho **por software**: el
+   procesador mueve las líneas SIOC y SIOD a través de un registro.
+2. **Medición y autoprueba de la red.** Clasifica una silueta guardada con `xnor` + `cpop` y otra vez
+   contando los bits con instrucciones básicas, y mide los ciclos de cada una con `TICKS`. Después
+   clasifica tres siluetas de referencia (cuerpo completo, medio cuerpo y busto): las tres deben salir
+   «persona».
+3. **Exposición fija y fondo.** A los 2 s congela la exposición, la ganancia y el balance de blancos (si
+   cambian solos, todo el cuadro parece moverse) y aprende el fondo vacío.
+4. **Por cada máscara** (31 veces por segundo):
+   * **Etiquetado** de manchas (componentes conexos de 4 vecinos) con relleno por inundación y pila en RAM;
+     el recuadro de cada mancha sale de `min` y `max`.
    * **Recorte** de cada mancha a 16 × 32 bits: ventana 1:2 centrada en el recuadro, muestreada con
      acumuladores (sin dividir).
-   * **Red binaria** (sección 3.2).
-   * **Seguimiento:** cada persona se empareja con la pista más cercana (distancia Manhattan de su centro y
-     sus pies, con `abs` de Xneura).
-   * **Reglas:** cruzar la línea cuenta una entrada o una salida; en el sentido prohibido es alarma. Tener los
-     pies dentro de la zona tres cuadros seguidos es alarma de intrusión. Cada evento se guarda en un registro
-     en RAM con el cuadro y el ciclo.
-   * **Salidas:** recuadros (verde persona, rojo intruso, gris no persona), zona, línea, letrero, LED y displays.
+   * **Red binaria** (4.2).
+   * **Voto entre cuadros.** Cada mancha se empareja con su pista (la más cercana, distancia Manhattan con
+     `abs`). La pista suma un voto cada cuadro en que la red dice «persona» y pierde uno cuando dice otra
+     cosa; con 2 votos la persona queda **confirmada**. Un cuadro mal clasificado ya no hace parpadear el
+     letrero ni dispara una alarma.
+   * **Reglas** (solo personas confirmadas): cruzar la línea cuenta una entrada o una salida, y en el sentido
+     prohibido es alarma; tener los pies dentro de la zona tres cuadros seguidos es alarma de intrusión.
+     Cada evento se guarda en un registro en RAM con el cuadro y el ciclo.
+   * **Salidas:** recuadros y letreros, zona, línea, barra de estado, LED y displays.
+5. **Cámara movida.** Si cambia más de la mitad de la imagen tres cuadros seguidos, no es una persona:
+   movieron la cámara o cambió la luz. El programa olvida las pistas, deja que la cámara vuelva a medir la
+   exposición y aprende el fondo otra vez, sin dar alarma.
 
-### 3.2 La red neuronal binaria
+### 4.2 La red neuronal binaria
 
 | Capa | Tamaño | Operación en el procesador |
 |---|---|---|
 | Entrada | 16 × 32 = 512 bits | la silueta recortada, en 16 palabras |
 | Oculta | 64 neuronas binarias | `cuenta = Σ cpop(xnor(x, w))` sobre 16 palabras; `a = cuenta ≥ T` |
-| Salida | 3 clases | `o_k = B_k + Σ W_kj` para las neuronas activas (pesos de 8 bits); `argmax` |
+| Salida | 3 clases | `o_k = B_k + Σ W_kj` para las neuronas activas (pesos de 8 bits); el mayor gana (`sgt`) |
 
-Los pesos de la capa oculta son de **un bit**, así que cada neurona se resuelve con `xnor` y `cpop`, dos
-instrucciones Zbb de la ROM de la clase. La red se entrenó fuera del procesador (`sw/entrenar_vigia.py`) con
-9 000 siluetas sintéticas generadas en la misma rejilla de 80 × 60 y recortadas con la misma aritmética
-entera del programa, con errores típicos de una máscara real (bordes comidos, huecos, sombra en los pies). Los
-pesos entran a la ROM como un archivo Verilog (`prog/pesos_vigia.vh`).
-
-Resultado con aritmética entera, que es lo que ejecuta el procesador, sobre 1 800 siluetas de prueba:
-**90.7 % de aciertos**; 95.5 % de las personas se reconocen como persona.
-
-| real \ predicha | persona | objeto o animal | ruido |
-|---|---|---|---|
-| persona | **573** | 14 | 13 |
-| objeto o animal | 19 | **543** | 38 |
-| ruido | 16 | 67 | **517** |
+Los pesos de la capa oculta son de **un bit**, así que cada neurona se resuelve con `xnor` (tabla `OP_R2`)
+y `cpop` (tabla `OP_R3`). La red se entrenó fuera del procesador (`sw/entrenar_vigia.py`) con 12 000
+siluetas sintéticas generadas en la misma rejilla de 80 × 60 y recortadas con la misma aritmética entera
+del programa, con los errores típicos de una máscara real (bordes comidos, huecos, sombra en los pies). Las
+personas se generan de tres maneras: **cuerpo completo** (40 %), **medio cuerpo** (30 %) y **busto**, es
+decir cabeza y hombros como en una foto tamaño infantil (30 %); en las dos últimas la persona está cerca
+de la cámara y el borde de la imagen o un mueble la corta. Entre los objetos hay formas parecidas a
+propósito (cajas apiladas, pantallas sobre un poste, pelotas, muebles pegados al borde). Los pesos entran
+a la memoria de programa como un archivo Verilog (`prog/pesos_vigia.vh`).
 
 ![Siluetas de entrenamiento](docs/img/siluetas_entrenamiento.png)
 
-*Ejemplos de prueba: personas (arriba), objetos y animales (en medio), ruido (abajo).*
+*Ejemplos: personas de cuerpo completo, de medio cuerpo y busto (tres primeros renglones), objetos y
+animales (cuarto) y ruido (quinto).*
 
-## 4. Modificaciones al procesador
+Resultado con aritmética entera, que es lo que ejecuta el procesador, sobre 1 800 siluetas de prueba:
+**91.6 % de aciertos**.
 
-Partiendo del procesador de las prácticas:
+| real \ predicha | persona | objeto o animal | ruido |
+|---|---|---|---|
+| persona | **573** | 13 | 14 |
+| objeto o animal | 19 | **524** | 57 |
+| ruido | 8 | 40 | **552** |
 
-1. **Memorias síncronas** (como la ROM de la Práctica 4) para que quepan en los bloques M9K: la ROM pasó a ser el
-   registro IF/ID y el acceso a la RAM se repartió entre EX (dirección y dato) y MEM (dato leído y extensión).
-2. **Divisor iterativo** de 34 ciclos con detención del pipeline. Un divisor combinacional de 32 bits no cabe
-   en un ciclo de 40 ns. La ALU de la Práctica 3 recibió el parámetro `DIV_COMBINACIONAL` y no cambió en lo demás.
-3. **Repertorio de la clase:** Zbb (`andn orn xnor min rol ror clz ctz cpop sext.b sext.h zext.h rev8`, más
-   `minu max maxu rori`) y las propias `nota`, `passb` y `sla` en custom-0, con la codificación exacta de la ROM
-   de instrucciones del laboratorio. La extensión Xneura se movió a custom-1.
-4. **Periféricos de cámara y visión** mapeados a memoria y un registro `PLATAFORMA` para que el mismo programa
-   ajuste sus tiempos en simulación y en la placa.
-5. **Tubería de visión y VGA** completas en hardware.
+| Personas reconocidas (400 siluetas nuevas de cada tipo) | |
+|---|---|
+| cuerpo completo | 92.8 % |
+| medio cuerpo | 96.0 % |
+| busto | 95.8 % |
+
+![Siluetas de la autoprueba](docs/img/siluetas_prueba.png)
+
+*Las tres siluetas guardadas en la memoria de programa que el procesador clasifica al arrancar: cuerpo
+completo, medio cuerpo y busto. En la simulación imprime `AUTOPRUEBA DE LA RED: PERSONAS=3 DE 3`.*
 
 ## 5. Verificación
 
-Todo se simula con Icarus Verilog (`simular.ps1`) y compila sin errores ni advertencias en el compilador de
-Active-HDL (`vlog`). Cada testbench se revisa solo y termina con `PRUEBAS: n  ERRORES: 0`.
+Todo se simula con Icarus Verilog (`simular.ps1` o `simular.sh`) y compila sin errores ni advertencias en
+el compilador de Active-HDL. Cada banco de pruebas se revisa solo y termina con `PRUEBAS: n  ERRORES: 0`;
+las salidas completas están en `tb/*.txt`.
 
-| Testbench | Qué comprueba | Resultado |
+| Banco de pruebas | Qué comprueba | Resultado |
 |---|---|---|
-| `tb_unidad_control` | la tabla de control para cada tipo de instrucción y el `alu_op` del segundo nivel (Práctica 5) | 21 / 21 |
-| `tb_memoria_datos` | patrón conocido, bytes y medias palabras en las cuatro posiciones, extensión de signo, acceso no alineado (Práctica 4) | 19 / 19 |
-| `tb_instrucciones_clase` | la ROM de instrucciones de la clase ejecutada en el procesador, contra un intérprete de referencia escrito aparte | 31 / 31 |
-| `tb_prueba_isa` | 92 resultados: RV32I, M, Zbb, clase, CSR, Xneura, accesos parciales, la suma de 1 a 10, los seis saltos, `jal`/`jalr`, adelantamiento, carga-uso, división entre cero y con desbordamiento, instrucción ilegal | 94 / 94 |
-| `tb_red_neuronal` | el clasificador 3 × 3 de la versión anterior (regresión) contra un modelo de referencia | 481 / 481 |
-| `tb_vigia` | el sistema completo con un modelo de la cámara OV7670 (ver 5.1) | RESULTADO_VIGIA |
+| `tb_programa_ab_c` | el programa original de la clase, sin cambiarlo: `x4 = 12`, `x5 = 60` | 3 / 3 |
+| `tb_uc_simple` | el recorrido de la máquina de estados y las señales de cada fase, por tipo de instrucción | 28 / 28 |
+| `tb_prueba_isa` | las 49 instrucciones: las tres tablas, inmediatos, cargas y almacenamientos por byte, los seis saltos, subrutinas, división entre cero, lectura de tablas | 64 / 64 |
+| `tb_red_neuronal` | clasificador 3 × 3 en las 16 combinaciones de prueba contra un modelo de referencia | 481 / 481 |
+| `tb_cargador` | se carga otro programa por JTAG con el procesador ya corriendo | 7 / 7 |
+| `tb_vision` | cámara a color, máscara, cuadro completo del monitor y lo que baja a la PC | 9 / 9 |
+| `tb_vigia` | el sistema completo con un modelo de la cámara (5.1) | 31 / 31 |
+
+El programa de la clase, ciclo por ciclo, en el procesador final (`tb_programa_ab_c`):
+
+```
+  ciclo 0  DECODE     PC=00000004  IR=00208233  resultado=0
+  ciclo 1  EXEC_R     PC=00000004  IR=00208233  resultado=0
+  ciclo 2  WRITEBACK  PC=00000004  IR=00208233  resultado=12
+  ciclo 3  FETCH      PC=00000004  IR=00208233  resultado=12
+  ciclo 4  DECODE     PC=00000008  IR=023212b3  resultado=12
+  ciclo 5  EXEC_R     PC=00000008  IR=023212b3  resultado=12
+  ciclo 6  WRITEBACK  PC=00000008  IR=023212b3  resultado=60
+```
 
 ### 5.1 El sistema completo con la cámara simulada
 
 `tb/modelo_ov7670.v` imita a la cámara: responde por SCCB (escritura y lectura de registros, PID y VER),
-genera PCLK = XCLK / (CLKRC + 1) como dice la hoja de datos, respeta el orden de bytes que fija TSLB y genera
-una escena sintética con textura, piso, ruido de sensor y, según el guion, un perro o una persona que camina.
-En simulación la cámara entrega 160 × 120 en lugar de 640 × 480 para que la prueba dure minutos; la
-detección es de 80 × 60 en ambos casos y el programa es exactamente el mismo.
+genera PCLK con la fórmula que se midió en la cámara real (XCLK × PLL / (2 × (CLKRC + 1))), respeta el
+orden de bytes y genera una escena sintética a color con textura, piso y ruido de sensor. En simulación
+la cámara entrega 160 × 120 en lugar de 320 × 240 para que la prueba no dure horas; la detección es de
+80 × 60 en ambos casos y el programa es exactamente el mismo.
 
-Guion y resultado:
+Guion: arranque → **mueven la cámara** (todo el fondo cambia) → **un perro** cruza la zona → **una persona**
+entra, cruza la línea en el sentido prohibido y se queda en la zona.
 
-DETALLE_VIGIA
+```
+=== NEURA-32 VIGIA: sistema completo con camara OV7670 simulada ===
+ROM: 2936 palabras (codigo 1470, tablas y pesos 1466)
+NEURA-32 VIGIA: vigilancia perimetral
+CAMARA PID=76 VER=73
+CAMARA CONFIGURADA
+RED BINARIA  CON CPOP=00838E CICLOS  SIN CPOP=0143AB CICLOS
+AUTOPRUEBA DE LA RED: PERSONAS=3 DE 3
+EXPOSICION FIJA
+FONDO APRENDIDO: VIGILANDO
+[  96.60 ms] arranque listo: cuadro 6, 11 escrituras y 2 lecturas SCCB
+[  96.66 ms] escena: CAMARA MOVIDA (cambia todo el fondo)
+CAMARA MOVIDA: APRENDO EL FONDO
+EXPOSICION FIJA
+FONDO APRENDIDO: VIGILANDO
+[ 256.52 ms] camara movida: fondo aprendido 1 vez, 0 celdas de silueta, 0 eventos
+[ 256.52 ms] escena: PERRO cruzando de derecha a izquierda
+[ 592.23 ms] escena: PERSONA entrando por la izquierda
+ENTRADA ID=01 CUADRO=002F
+INTRUSO: CRUCE PROHIBIDO ID=01 CUADRO=002F
+INTRUSO: EN ZONA ID=01 CUADRO=0032
+cuadros procesados=58  manchas persona=21  no persona=15  eventos=3
+entradas=1 salidas=0 alarma=00000031  en zona=1  manchas=1
+red binaria: con cpop=33678 ciclos, sin cpop=82859 ciclos (aceleracion x2.46)
+ciclos del ultimo cuadro=249392  maximo=251942  (un cuadro de la camara simulada = 399648 ciclos)
+puntuaciones del ultimo recorte: programa (200, -348, -404)  referencia (200, -348, -404)
+registro de eventos:
+   tipo 1  id 1  cuadro 47
+   tipo 3  id 1  cuadro 47
+   tipo 4  id 1  cuadro 50
+  ok    camara identificada: PID = 0x76
+  ok    camara identificada: VER = 0x73
+  ok    SCCB: CLKRC = 0x01 y PLL x4 (31 cuadros/s)
+  ok    SCCB: la camara quedo en 320 x 240 (aqui 160 x 120)
+  ok    SCCB: TSLB = 0x04 (orden Y U Y V)
+  ok    SCCB: COM8 = 0xE0 (exposicion fija)
+  ok    red: silueta de prueba = persona en las 2 versiones
+  ok    red: con cpop mas rapida que contando por software
+  ok    red: cuerpo completo, medio cuerpo y busto = persona
+  ok    camara movida: se volvio a aprender el fondo
+  ok    camara movida: el fondo nuevo ya no sale como silueta
+  ok    camara movida: ni eventos ni alarma
+  ok    perro: ningun evento
+  ok    perro: sin alarma
+  ok    perro: clasificado como no persona
+  ok    persona: 1 entrada contada
+  ok    persona: 0 salidas
+  ok    persona: alarma activa
+  ok    persona: motivo intrusion en zona
+  ok    persona: motivo cruce prohibido
+  ok    eventos: entrada, cruce y zona
+  ok    persona: 1 persona en la zona
+  ok    voto entre cuadros: 1 persona confirmada a la vista
+  ok    monitor: letrero INTRUSO parpadeando
+  ok    monitor: recuadro rojo sobre la persona
+  ok    displays: entradas 01, salidas 00, zona 1, manchas 1
+  ok    red: puntuacion = referencia Verilog
+  ok    red: puntuacion = referencia Verilog
+  ok    red: puntuacion = referencia Verilog
+  ok    tiempo real: cabe en un cuadro de la placa (800 000 ciclos)
+  ok    sin instrucciones que no existan
+instrucciones=5558959 ciclos=23483842 CPI=4.22
+PRUEBAS: 31  ERRORES: 0
+```
+
+![Monitor en la simulación del sistema completo](docs/img/vga_vigia.png)
+
+*Cuadro del monitor al final de `tb_vigia`, con lo que escribió el procesador: la persona dentro de la zona
+(borde amarillo), recuadro rojo, letrero de alarma, 1 persona y 3 eventos en la barra de estado. La silueta
+sale en azul porque en esta prueba SW3 está arriba.*
+
+### 5.2 En la placa
+
+Con la DE10-Lite y la cámara conectadas se comprobó, con el diseño de prueba `fpga/prueba_camara`: el
+cableado de las 16 señales, la respuesta de la cámara por SCCB (PID = 0x76, VER = 0x73), la relación entre
+XCLK y PCLK, la ventana de imagen (registros HSTART, HSTOP, VSTRT, VSTOP) y la fase de XCLK que deja la
+imagen sin rayas. Esos ajustes están en `prog/ajustes_camara.txt`, que es de donde sale la tabla que el
+programa le escribe a la cámara.
 
 ## 6. Mediciones de recursos y rendimiento
 
 ### 6.1 Rendimiento
 
-| Programa | Instrucciones | Ciclos | CPI |
+| Programa | Instrucciones | Ciclos | Ciclos por instrucción |
 |---|---|---|---|
-| ROM de instrucciones de la clase | 35 | 105 | 3.00 (incluye dos divisiones de 34 ciclos) |
-| Prueba del repertorio | 296 | 617 | 2.08 (seis divisiones iterativas) |
-| Clasificador 3 × 3 (una inferencia) | 2 632 | 3 534 | 1.34 |
-| Vigía, procesar una máscara con una mancha | MEDIDA_INSTR | ≈ 58 000 | MEDIDA_CPI |
+| `(a + b) · c` de la clase | 2 | 8 | 4.00 |
+| Prueba de todas las instrucciones | 198 | 924 | 4.66 (incluye divisiones de 36 ciclos) |
+| Clasificador 3 × 3 (una inferencia) | 2 632 | 10 782 | 4.09 |
+| Vigía, simulación completa | 5 558 959 | 23 483 842 | 4.22 |
 
-**Red binaria con y sin Zbb** (misma silueta, CSR `cycle`):
+**La red binaria con y sin `cpop`** (misma silueta, medido por el propio programa con `TICKS`):
 
-| Versión | Por palabra | Ciclos por clasificación |
+| Versión | Por palabra de 32 bits | Ciclos por clasificación |
 |---|---|---|
-| RV32IM puro (`xor`, `not` y conteo de bits por software) | 17 instrucciones | 22 568 |
-| con Zbb (`xnor` + `cpop`) | 5 instrucciones | 10 273 |
+| contando los bits por software (`xor`, `xori`, corrimientos, `and`, sumas y `mul`) | 17 instrucciones | 82 859 |
+| con `xnor` + `cpop` | 5 instrucciones | 33 678 |
 
-Las instrucciones de la clase hacen la red **2.2 veces más rápida**.
+Agregar `cpop` a la tabla `OP_R3` hace la red **2.5 veces más rápida**: es el mejor ejemplo de por
+qué conviene tener más de 8 operaciones.
 
-**Tiempo real.** A 25 MHz, procesar una máscara con una persona toma unos 58 000 ciclos, 2.3 ms. En la placa
-la cámara entrega un cuadro cada 128 ms (7.8 cuadros por segundo con PCLK de 6.25 MHz): el procesador ocupa
-menos del 2 % del tiempo y el sistema reacciona en el cuadro siguiente.
+**Tiempo real.** La cámara entrega un cuadro cada 32 ms, que a 25 MHz son 800 000 ciclos. Procesar una
+máscara con una persona (etiquetar, recortar, clasificar, votar, reglas y dibujar) toma
+251 942 ciclos como máximo, 10.1 ms: el procesador multiciclo usa el 31 % del
+tiempo de cada cuadro y la respuesta llega en el cuadro siguiente.
 
-### 6.2 Recursos en la MAX 10
+### 6.2 Recursos en la MAX 10 (Quartus Prime 24.1 Lite)
 
-RECURSOS_QUARTUS
+| Recurso | Usado | Disponible |
+|---|---|---|
+| Elementos lógicos | 9 148 (18 %) | 49 760 |
+| Registros | 4 039 | |
+| Bloques de memoria M9K | 163 (90 %) | 182 |
+| Bits de memoria | 1 211 136 (72 %) | 1 677 312 |
+| Multiplicadores de 9 bits | 6 | 288 |
+| Pines | 121 | 360 |
+| Frecuencia máxima del reloj de 25 MHz (modelo lento, 85 °C) | 35.71 MHz | se necesitan 25 MHz |
+
+La memoria es lo que más se ocupa: el video (brillo y color), las dos copias que se mandan a la PC, el
+fondo, las máscaras, las 4096 palabras de programa y las 4096 de datos.
 
 ## 7. Conclusiones y trabajo futuro
 
-CONCLUSIONES
+* El procesador de la clase alcanzó para una aplicación real sin cambiarle la forma: sigue siendo
+  multiciclo, con los mismos bloques, y el programa `(a + b) · c` todavía corre en él. Lo que cambió fue
+  cuántas cosas sabe hacer cada bloque.
+* Mantener `funct3` en 3 bits y repartir las operaciones en varios opcodes del mismo tipo (`OP_R1`,
+  `OP_R2`, `OP_R3`) dejó una ALU fácil de leer: un `case` del opcode y adentro un `case` de 8 operaciones.
+  Agregar una operación es agregar un renglón.
+* Las instrucciones nuevas se justifican midiendo: `xnor` y `cpop` hacen la red 2.5 veces más
+  rápida, y con `min`, `max`, `abs` y `sgt` el programa de vigilancia cabe en el tiempo de un cuadro aunque
+  cada instrucción tarde 4 ciclos.
+* Repartir el trabajo entre hardware y programa fue la decisión que lo hizo posible: lo que se repite por
+  cada pixel (captura, promedio, fondo, máscara, monitor) es hardware; lo que decide (manchas, red, votos,
+  reglas) es programa y se puede cambiar cargando otro `.txt`.
+* Trabajo futuro: un clasificador con más neuronas para distinguir entre varias personas juntas, guardar
+  la foto del evento en una memoria externa y resolver los saltos un ciclo antes para bajar los ciclos por
+  instrucción.
 
 ---
 
@@ -289,15 +566,18 @@ CONCLUSIONES
 ### Simulación
 
 ```powershell
-pwsh -File simular.ps1            # todo (tb_vigia tarda unos 10 minutos)
-pwsh -File simular.ps1 -Rapido    # todo menos el sistema completo
-pwsh -File simular.ps1 -Pruebas tb_vigia
+pwsh -File simular.ps1            # todos los bancos (tb_vigia tarda cerca de una hora)
+pwsh -File simular.ps1 -Rapido    # todos menos el sistema completo
+pwsh -File simular.ps1 -Pruebas tb_prueba_isa
 ```
 
+Primero escribe los `.txt` de instrucciones (`fpga/programa_*.txt`) y después corre cada banco; la salida de
+cada uno queda en `tb/<banco>.txt`. En Git Bash se usa igual `bash simular.sh [banco ...]`.
+
 En Active-HDL, con el workspace `Lab_Arquitecturas` abierto:
-`do ".../Proyecto-Final-NEURA32/activehdl/agregar_diseno.do"` agrega el diseño, compila y corre la prueba del
-repertorio. Después: `simular_clase.do`, `simular_control.do`, `simular_memoria.do`, `simular_isa.do`,
-`simular_red.do` o `simular_vigia.do`.
+`do ".../Proyecto-Final-NEURA32/activehdl/agregar_diseno.do"` agrega el diseño, compila y corre el programa
+de la clase. Después: `simular_ab_c.do`, `simular_uc.do`, `simular_isa.do`, `simular_red.do` o
+`simular_vigia.do`.
 
 ### Placa DE10-Lite
 
@@ -312,28 +592,35 @@ pwsh -File fpga\compilar.ps1 -Grabar  # además programa la placa por USB-Blaste
 | KEY1 | borra la alarma |
 | SW1..SW0 | zona y línea (4 configuraciones) |
 | SW2 | sentido prohibido: 0 izquierda→derecha, 1 al revés |
-| SW3 | pinta la silueta en azul |
-| SW4 | red con RV32IM puro (para comparar con Zbb) |
+| SW3 | pinta toda la máscara de movimiento en azul |
+| SW4 | red sin `cpop` (para comparar la velocidad) |
 | SW7..SW5 | umbral de movimiento: 28 + 8 × valor |
-| SW8 | barras de colores en el monitor (prueba del VGA sin cámara) |
+| SW8 | barras de colores en el monitor (prueba el VGA sin cámara) |
 | SW9 | vuelve a aprender el fondo mientras está arriba |
 | LEDR9 / LEDR8 / LEDR7 / LEDR6 | alarma (parpadea) / aprendiendo el fondo / cámara identificada / un cuadro procesado |
 | HEX5-4 / HEX3-2 / HEX1 / HEX0 | entradas / salidas / personas en la zona / manchas |
+
+Ver el video en la computadora (sin monitor) y cargar otro programa, desde la carpeta `fpga`:
+
+```powershell
+python ver_vigia.py
+```
+
+```powershell
+quartus_stp -t cargar_programa.tcl programa_demo.txt
+```
 
 La guía de conexión y arranque paso a paso está en [docs/PRUEBA-EN-PLACA.md](docs/PRUEBA-EN-PLACA.md).
 
 ### La cámara
 
-**Modelo:** OV7670 **sin FIFO**, módulo azul de 18 pines (cabezal 2 × 9), alimentación de 3.3 V, salida
-paralela de 8 bits y configuración por SCCB. No sirve la versión con FIFO AL422 (24 pines): el buffer de
-cuadro ya está en los bloques M9K. Se usó el paquete de 4 piezas de la tienda oficial Tecneu en Mercado Libre
-(publicación MLM65989366); cualquier OV7670 de 18 pines sin FIFO es equivalente, y tener repuestos conviene
-porque 5 V en lugar de 3.3 V quema el módulo.
+**Modelo:** OV7670 **sin FIFO**, módulo de 18 pines (cabezal 2 × 9), alimentación de 3.3 V, salida paralela de
+8 bits y configuración por SCCB. Sensor de 656 × 488 pixeles (640 × 480 útiles), pixel de 3.6 µm, hasta 30
+cuadros por segundo a resolución completa, salida YUV 4:2:2 o RGB. No sirve la versión con FIFO AL422 (24
+pines): la memoria de video ya está en los bloques M9K.
 
-**Compatibilidad con la DE10-Lite:** el conector GPIO (JP1) tiene 36 pines de 3.3-V LVTTL y salida de 3.3 V y
-tierra; la cámara usa 16 señales. El XCLK de 25 MHz lo genera la FPGA y la cámara lo divide entre 4 (registro
-CLKRC) para que PCLK sea de 6.25 MHz. SIOC y SIOD llevan resistencias de 4.7 kΩ a 3.3 V (además de la
-resistencia interna de la MAX 10 que activa el `.qsf`).
+**Conexión a la DE10-Lite:** el conector GPIO (JP1) es de 3.3 V. La cámara se alimenta del **pin 29 (3.3 V)**;
+nunca del pin 11 (5 V), que la quema.
 
 | OV7670 | JP1 | GPIO | OV7670 | JP1 | GPIO |
 |---|---|---|---|---|---|
@@ -347,39 +634,31 @@ resistencia interna de la MAX 10 que activa el `.qsf`).
 | D1 | pin 15 | GPIO[12] | D0 | pin 16 | GPIO[13] |
 | RESET | pin 17 | GPIO[14] | PWDN | pin 18 | GPIO[15] |
 
-**Distancia y campo de visión.** El lente del módulo es de unos 6 mm sobre un sensor de 1/6"; da un campo de
-visión de unos 22° en horizontal y 16° en vertical. Para que una persona de 1.75 m de pie quepa completa, la
-cámara debe estar a **unos 6 m**; a esa distancia la persona ocupa unas 50 de las 60 filas de la rejilla de
-detección, justo el rango de tamaños con que se entrenó la red (16 a 56 filas). Para la demostración hay dos
-opciones:
-
-1. Cámara fija al fondo del salón o de un pasillo, de 6 a 8 m de la zona vigilada.
-2. Siluetas recortadas o figuras de unos 30 cm a 1 m de la cámara: la red reconoce la forma de la silueta, no
-   su tamaño, porque cada mancha se recorta y se escala a 16 × 32.
-
-La cámara debe quedar fija (el fondo se aprende con la cámara quieta) y con luz estable. El enfoque se ajusta
-girando el lente.
+**Distancia.** El lente del módulo da un campo de visión de unos 22° en horizontal y 16° en vertical. Una
+persona de 1.75 m de pie cabe completa a unos **6 m**; a unos 3 m se ve de medio cuerpo y a menos de 2 m
+solo el busto, y la red reconoce los tres casos. La cámara debe quedar fija (el fondo se aprende con la
+cámara quieta; si se mueve, el programa lo vuelve a aprender) y el enfoque se ajusta girando el lente.
 
 ## Estructura
 
 | Carpeta | Contenido |
 |---|---|
-| `hdl/` | el procesador (núcleo, ALU, memorias, control, CSR, periféricos) y el SoC |
-| `hdl/vision/` | captura, fondo y máscara, memorias de video, VGA y registros de visión |
-| `prog/` | ensamblador en Verilog, programas, pesos de las redes y la ROM de instrucciones de la clase |
-| `tb/` | testbenches, modelo de la cámara y generador de la ROM; salidas en `tb/*.txt` |
-| `fpga/` | proyecto de Quartus para la DE10-Lite, pines, restricciones y la ROM `programa_vigia.txt` |
+| `docs/base-clase/` | el RISC-V de la clase, punto de partida (sin cambios) |
+| `hdl/` | el procesador (`riscv_neura`, `uc_simple`, `alu_riscv`, `decoder`, `regfile`, `rom`, `ram`, `pipo_register`, `divider`), periféricos, cargador y el sistema completo |
+| `hdl/vision/` | captura de la cámara, promedio, fondo y máscara, memorias, monitor VGA, vista en la PC y registros |
+| `prog/` | ensamblador en Verilog, programas, pesos de las redes y ajustes de la cámara |
+| `tb/` | bancos de prueba, modelo de la cámara, modelo del JTAG y generador de los `.txt`; salidas en `tb/*.txt` |
+| `fpga/` | proyecto de Quartus para la DE10-Lite, los programas en `.txt`, el cargador y el visor de la PC |
 | `activehdl/` | macros para Active-HDL |
-| `sw/` | entrenamiento de las redes y conversión de imágenes |
-| `docs/` | propuesta e imágenes |
+| `sw/` | entrenamiento de las redes, fuente de letras, tabla de la cámara y visor |
+| `docs/` | guía de prueba en la placa e imágenes |
 
 ## Referencias
 
 1. A. Waterman y K. Asanović (eds.), *The RISC-V Instruction Set Manual, Volume I: Unprivileged ISA*, RISC-V International.
-2. RISC-V International, *RISC-V Bit-Manipulation ISA-extensions (Zba, Zbb, Zbc, Zbs)*, versión 1.0.0, 2021.
-3. D. A. Patterson y J. L. Hennessy, *Computer Organization and Design RISC-V Edition*, Morgan Kaufmann, 2.ª ed., 2020.
-4. Terasic, *DE10-Lite User Manual*, 2022.
-5. OmniVision, *OV7670/OV7171 CMOS VGA CameraChip Implementation Guide* y hoja de datos del OV7670.
-6. M. Rastegari, V. Ordonez, J. Redmon y A. Farhadi, «XNOR-Net: ImageNet Classification Using Binary Convolutional Neural Networks», *ECCV*, 2016.
-7. Y. Umuroglu *et al.*, «FINN: A Framework for Fast, Scalable Binarized Neural Network Inference», *FPGA '17*, 2017.
-8. M. Rodríguez-Gómez *et al.*, «FPGA Implementation for Real-Time Background Subtraction Based on Horprasert Model», *Sensors*, 2012.
+2. D. A. Patterson y J. L. Hennessy, *Computer Organization and Design RISC-V Edition*, Morgan Kaufmann, 2.ª ed., 2020.
+3. Terasic, *DE10-Lite User Manual*, 2022.
+4. OmniVision, *OV7670/OV7171 CMOS VGA CameraChip Implementation Guide* y hoja de datos del OV7670.
+5. M. Rastegari, V. Ordonez, J. Redmon y A. Farhadi, «XNOR-Net: ImageNet Classification Using Binary Convolutional Neural Networks», *ECCV*, 2016.
+6. Y. Umuroglu *et al.*, «FINN: A Framework for Fast, Scalable Binarized Neural Network Inference», *FPGA '17*, 2017.
+7. M. Rodríguez-Gómez *et al.*, «FPGA Implementation for Real-Time Background Subtraction Based on Horprasert Model», *Sensors*, 2012.

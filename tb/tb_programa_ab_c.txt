@@ -1,0 +1,13 @@
+=== El programa de la clase, (a + b) * c, en NEURA-32 ===
+  ciclo 0  DECODE  PC=00000004  IR=00208233  resultado=0
+  ciclo 1  EXEC_R  PC=00000004  IR=00208233  resultado=0
+  ciclo 2  WRITEBACK  PC=00000004  IR=00208233  resultado=12
+  ciclo 3  FETCH  PC=00000004  IR=00208233  resultado=12
+  ciclo 4  DECODE  PC=00000008  IR=023212b3  resultado=12
+  ciclo 5  EXEC_R  PC=00000008  IR=023212b3  resultado=12
+  ciclo 6  WRITEBACK  PC=00000008  IR=023212b3  resultado=60
+  ciclo 7  FETCH  PC=00000008  IR=023212b3  resultado=60
+  ok    x4 = a + b = 12
+  ok    x5 = (a + b) * c = 60
+  ok    a, b y c no cambian
+PRUEBAS: 3  ERRORES: 0
