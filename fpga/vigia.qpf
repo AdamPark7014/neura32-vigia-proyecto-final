@@ -1,0 +1,3 @@
+# NEURA-32 Vigia en la DE10-Lite
+QUARTUS_VERSION = "24.1"
+PROJECT_REVISION = "vigia"

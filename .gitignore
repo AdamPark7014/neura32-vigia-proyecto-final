@@ -1,0 +1,39 @@
+# simulacion
+build/
+*.vvp
+tb/salidas/
+font8x16.txt
+
+# Quartus
+fpga/db/
+fpga/incremental_db/
+fpga/output_files/
+fpga/*.log
+fpga/*.rpt
+fpga/rutas_criticas.txt
+fpga/ruta_peor.txt
+fpga/RESUMEN.txt
+fpga/prueba_camara/db/
+fpga/prueba_camara/incremental_db/
+fpga/prueba_camara/output_files/
+fpga/prueba_camara/*.log
+fpga/**/*.qws
+fpga/**/*.bak
+
+# capturas de la camara y fotos locales
+fpga/prueba_camara/*.png
+fpga/prueba_camara/*.pgm
+fpga/prueba_camara/fotos/
+fpga/fotos/
+
+# Active-HDL
+activehdl/**/compile/
+activehdl/**/log/
+activehdl/**/*.aws
+activehdl/**/*.adf
+activehdl/library.cfg
+
+# Python y notas locales
+__pycache__/
+*.pyc
+.ai/

@@ -1,0 +1,34 @@
+// ROM de instrucciones de la clase (copia de Entregas/rom-instrucciones-riscv/src/instrucciones.txt)
+// La ejecuta tb_instrucciones_clase.v con x1 y x2 precargados.
+002081B3 // add x3, x1, x2
+40208233 // sub x4, x1, x2
+0020F2B3 // and x5, x1, x2
+0020E333 // or x6, x1, x2
+0020C3B3 // xor x7, x1, x2
+0020840B // nota x8, x1
+002094B3 // sll x9, x1, x2
+0020D533 // srl x10, x1, x2
+0020958B // passb x11, x2
+0A20C633 // min x12, x1, x2
+0020A6B3 // slt x13, x1, x2
+0020B733 // sltu x14, x1, x2
+022087B3 // mul x15, x1, x2
+02209833 // mulh x16, x1, x2
+0220B8B3 // mulhu x17, x1, x2
+0220C933 // div x18, x1, x2
+0220E9B3 // rem x19, x1, x2
+4020FA33 // andn x20, x1, x2
+4020EAB3 // orn x21, x1, x2
+4020CB33 // xnor x22, x1, x2
+60209BB3 // rol x23, x1, x2
+6020DC33 // ror x24, x1, x2
+4020DCB3 // sra x25, x1, x2
+0020AD0B // sla x26, x1, x2
+60409D93 // sext.b x27, x1
+60509E13 // sext.h x28, x1
+0800CEB3 // zext.h x29, x1
+60009F13 // clz x30, x1
+60109F93 // ctz x31, x1
+60209113 // cpop x2, x1
+6980D093 // rev8 x1, x1
+00000000 // vacia

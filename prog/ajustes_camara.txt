@@ -1,0 +1,186 @@
+// Registros de la OV7670 para NEURA-32 Vigia (registro y valor en hexadecimal).
+// Modo: 320 x 240 (el sensor promedia 2 x 2 de sus 640 x 480 pixeles), color YUV 4:2:2,
+// ~31 cuadros por segundo. Base: los valores recomendados por OmniVision que usa el
+// controlador de Linux (ov7670_default_regs), afinados en vivo en la placa.
+// Con este archivo sw/generar_tabla_camara.py arma prog/tabla_camara.vh.
+
+// --- reloj: 25 MHz x 4 (PLL) / (2 x 2) = 25 MHz internos -> 31 cuadros/s; PCLK = 12.5 MHz ---
+11 01   // CLKRC: preescala entre 2
+6B 4A   // DBLV: PLL x4
+
+// --- ventana de imagen: quita la franja de pixeles invalidos de la izquierda ---
+17 16   // HSTART (ventana de 320 x 240)
+18 04   // HSTOP
+32 24   // HREF: bits bajos de inicio y fin
+19 02   // VSTRT
+1A 7A   // VSTOP
+03 0A   // VREF
+
+// --- formato: VGA, YUV 4:2:2 (Y U Y V), rango completo 00..FF ---
+12 00   // COM7
+3A 04   // TSLB
+8C 00   // RGB444 apagado
+04 00   // COM1
+40 C0   // COM15: salida 00..FF
+0C 04   // COM3: escalado dentro del sensor (promedia 2 x 2 pixeles)
+3E 19   // COM14: escalado manual y PCLK entre 2
+70 3A   // SCALING_XSC
+71 35   // SCALING_YSC
+72 11   // SCALING_DCWCTR: reducir a la mitad en x y en y
+73 F1   // SCALING_PCLK_DIV: PCLK entre 2
+A2 02   // SCALING_PCLK_DELAY
+15 00   // COM10
+
+// --- curva gamma ---
+7A 20
+7B 10
+7C 1E
+7D 35
+7E 5A
+7F 69
+80 76
+81 80
+82 88
+83 8F
+84 96
+85 A3
+86 AF
+87 C4
+88 D7
+89 E8
+
+// --- exposicion y ganancia automaticas (se apagan, se ajustan y se prenden) ---
+13 E0   // COM8: AEC rapido, paso sin limite, filtro de bandas
+00 00   // GAIN
+10 00   // AECH
+0D 40   // COM4
+14 38   // COM9: tope de ganancia 16x
+A5 05   // BD50MAX
+AB 07   // BD60MAX
+24 95   // AEW: limite alto de brillo estable
+25 33   // AEB: limite bajo
+26 E3   // VPT: zona de ajuste rapido
+9F 78   // HAECC1
+A0 68   // HAECC2
+A1 03
+A6 D8   // HAECC3
+A7 D8   // HAECC4
+A8 F0   // HAECC5
+A9 90   // HAECC6
+AA 94   // HAECC7
+13 E5   // COM8: + AGC + AEC
+
+// --- valores reservados que recomienda el fabricante ---
+0E 61   // COM5
+0F 4B   // COM6
+16 02
+1E 07   // MVFP (los bits 5 y 4 son espejo y volteo vertical)
+21 02
+22 91
+29 07
+33 0B
+35 0B
+37 1D
+38 71
+39 2A
+3C 78   // COM12
+4D 40
+4E 20
+69 00   // GFIX
+74 10
+8D 4F
+8E 00
+8F 00
+90 00
+91 00
+96 00
+9A 00
+B0 84
+B1 0C
+B2 0E
+B3 82
+B8 0A
+
+// --- balance de blancos ---
+43 0A
+44 F0
+45 34
+46 58
+47 28
+48 3A
+59 88
+5A 88
+5B 44
+5C 67
+5D 49
+5E 0E
+6C 0A
+6D 55
+6E 11
+6F 9F
+6A 40
+01 40   // BLUE
+02 60   // RED
+13 E7   // COM8: + AWB
+
+// --- matriz de color (YUV) ---
+4F 80
+50 80
+51 00
+52 22
+53 5E
+54 80
+58 9E
+
+// --- nitidez y ruido ---
+41 08   // COM16: ganancia AWB
+3F 00   // EDGE
+75 05   // limite bajo del realce de bordes
+76 E1   // limite alto + correccion de pixeles malos
+4C 00   // DNSTH: umbral de reduccion de ruido
+77 01   // desplazamiento de la reduccion de ruido
+3D C0   // COM13: gamma + saturacion automatica
+4B 09
+C9 60
+41 38   // COM16: realce de bordes y reduccion de ruido automaticos
+56 40   // contraste
+
+// --- filtro de parpadeo de la luz (50 / 60 Hz automatico) ---
+34 11
+3B 12   // COM11: deteccion automatica 50/60 Hz, exposicion menor a una banda
+A4 88
+96 00
+97 30
+98 20
+99 30
+9A 84
+9B 29
+9C 03
+9D 4C
+9E 3F
+78 04
+
+// --- registro multiplexado (valores del fabricante) ---
+79 01
+C8 F0
+79 0F
+C8 00
+79 10
+C8 7E
+79 0A
+C8 80
+79 0B
+C8 01
+79 0C
+C8 0F
+79 0D
+C8 20
+79 09
+C8 80
+79 02
+C8 C0
+79 03
+C8 40
+79 05
+C8 30
+79 26

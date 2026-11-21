@@ -1,0 +1,102 @@
+=== NEURA-32 VIGIA: sistema completo con camara OV7670 simulada ===
+ROM: 2572 palabras (codigo 1318, tablas y pesos 1254)
+NEURA-32 VIGIA: vigilancia perimetral
+CAMARA PID=76 VER=73
+CAMARA CONFIGURADA
+RED BINARIA  ZBB=002821 CICLOS  RV32IM=005828 CICLOS
+[  14.78 ms] mascara 1: manchas=0 personas=0 no persona=0 en zona=0 alarma=00000000 ciclos=0
+EXPOSICION FIJA
+[  22.44 ms] mascara 2: manchas=0 personas=0 no persona=0 en zona=0 alarma=00000000 ciclos=0
+[  30.09 ms] mascara 3: manchas=0 personas=0 no persona=0 en zona=0 alarma=00000000 ciclos=0
+[  37.74 ms] mascara 4: manchas=0 personas=0 no persona=0 en zona=0 alarma=00000000 ciclos=0
+FONDO APRENDIDO: VIGILANDO
+[  45.40 ms] mascara 5: manchas=0 personas=0 no persona=0 en zona=0 alarma=00000000 ciclos=0
+[  53.05 ms] mascara 6: manchas=0 personas=0 no persona=0 en zona=0 alarma=00000000 ciclos=20699
+[  53.05 ms] arranque listo: cuadro 6, 11 escrituras y 2 lecturas SCCB
+[  53.05 ms] escena: PERRO cruzando de derecha a izquierda
+[  60.71 ms] mascara 7: manchas=0 personas=0 no persona=0 en zona=0 alarma=00000000 ciclos=20699
+[  68.36 ms] mascara 8: manchas=1 personas=0 no persona=1 en zona=0 alarma=00000000 ciclos=56470
+[  76.02 ms] mascara 9: manchas=1 personas=0 no persona=2 en zona=0 alarma=00000000 ciclos=57751
+[  83.67 ms] mascara 10: manchas=1 personas=0 no persona=3 en zona=0 alarma=00000000 ciclos=57897
+[  91.33 ms] mascara 11: manchas=1 personas=0 no persona=4 en zona=0 alarma=00000000 ciclos=57610
+[  98.98 ms] mascara 12: manchas=1 personas=0 no persona=5 en zona=0 alarma=00000000 ciclos=57610
+[ 106.63 ms] mascara 13: manchas=1 personas=0 no persona=6 en zona=0 alarma=00000000 ciclos=57603
+[ 114.29 ms] mascara 14: manchas=1 personas=0 no persona=7 en zona=0 alarma=00000000 ciclos=58083
+[ 121.94 ms] mascara 15: manchas=1 personas=0 no persona=8 en zona=0 alarma=00000000 ciclos=57818
+[ 129.60 ms] mascara 16: manchas=1 personas=0 no persona=9 en zona=0 alarma=00000000 ciclos=57603
+[ 137.25 ms] mascara 17: manchas=1 personas=0 no persona=10 en zona=0 alarma=00000000 ciclos=57796
+[ 144.91 ms] mascara 18: manchas=1 personas=0 no persona=11 en zona=0 alarma=00000000 ciclos=57912
+[ 152.56 ms] mascara 19: manchas=1 personas=0 no persona=12 en zona=0 alarma=00000000 ciclos=57376
+[ 160.21 ms] mascara 20: manchas=1 personas=0 no persona=13 en zona=0 alarma=00000000 ciclos=54533
+[ 167.87 ms] mascara 21: manchas=1 personas=0 no persona=14 en zona=0 alarma=00000000 ciclos=50943
+[ 175.52 ms] mascara 22: manchas=0 personas=0 no persona=14 en zona=0 alarma=00000000 ciclos=20699
+[ 183.18 ms] mascara 23: manchas=0 personas=0 no persona=14 en zona=0 alarma=00000000 ciclos=20699
+[ 190.83 ms] mascara 24: manchas=0 personas=0 no persona=14 en zona=0 alarma=00000000 ciclos=20699
+[ 198.49 ms] mascara 25: manchas=0 personas=0 no persona=14 en zona=0 alarma=00000000 ciclos=20699
+[ 206.14 ms] mascara 26: manchas=0 personas=0 no persona=14 en zona=0 alarma=00000000 ciclos=20699
+[ 206.27 ms] escena: PERSONA entrando por la izquierda
+[ 213.80 ms] mascara 27: manchas=0 personas=0 no persona=14 en zona=0 alarma=00000000 ciclos=20699
+[ 221.45 ms] mascara 28: manchas=1 personas=1 no persona=14 en zona=0 alarma=00000000 ciclos=80838
+[ 229.10 ms] mascara 29: manchas=1 personas=2 no persona=14 en zona=0 alarma=00000000 ciclos=86405
+[ 236.76 ms] mascara 30: manchas=1 personas=3 no persona=14 en zona=0 alarma=00000000 ciclos=85974
+[ 244.41 ms] mascara 31: manchas=1 personas=4 no persona=14 en zona=0 alarma=00000000 ciclos=86584
+[ 252.07 ms] mascara 32: manchas=1 personas=5 no persona=14 en zona=0 alarma=00000000 ciclos=86171
+[ 259.72 ms] mascara 33: manchas=1 personas=6 no persona=14 en zona=0 alarma=00000000 ciclos=86661
+[ 267.38 ms] mascara 34: manchas=1 personas=7 no persona=14 en zona=0 alarma=00000000 ciclos=86030
+[ 275.03 ms] mascara 35: manchas=1 personas=8 no persona=14 en zona=0 alarma=00000000 ciclos=86652
+[ 282.69 ms] mascara 36: manchas=1 personas=9 no persona=14 en zona=0 alarma=00000000 ciclos=86096
+ENTRADA ID=01 CUADRO=0024
+INTRUSO: CRUCE PROHIBIDO ID=01 CUADRO=0024
+[ 290.34 ms] mascara 37: manchas=1 personas=10 no persona=14 en zona=0 alarma=00000021 ciclos=87474
+[ 297.99 ms] mascara 38: manchas=1 personas=11 no persona=14 en zona=1 alarma=00000021 ciclos=85851
+[ 305.65 ms] mascara 39: manchas=1 personas=12 no persona=14 en zona=1 alarma=00000021 ciclos=86605
+INTRUSO: EN ZONA ID=01 CUADRO=0027
+[ 313.30 ms] mascara 40: manchas=1 personas=13 no persona=14 en zona=1 alarma=00000031 ciclos=86403
+[ 320.96 ms] mascara 41: manchas=1 personas=14 no persona=14 en zona=1 alarma=00000031 ciclos=86605
+[ 328.61 ms] mascara 42: manchas=1 personas=15 no persona=14 en zona=1 alarma=00000031 ciclos=86383
+[ 336.27 ms] mascara 43: manchas=1 personas=16 no persona=14 en zona=1 alarma=00000031 ciclos=86314
+[ 343.92 ms] mascara 44: manchas=1 personas=17 no persona=14 en zona=1 alarma=00000031 ciclos=86162
+[ 351.57 ms] mascara 45: manchas=1 personas=18 no persona=14 en zona=1 alarma=00000031 ciclos=86162
+[ 359.23 ms] mascara 46: manchas=1 personas=19 no persona=14 en zona=1 alarma=00000031 ciclos=86162
+[ 366.88 ms] mascara 47: manchas=1 personas=20 no persona=14 en zona=1 alarma=00000031 ciclos=86162
+[ 374.54 ms] mascara 48: manchas=1 personas=21 no persona=14 en zona=1 alarma=00000031 ciclos=86162
+[ 382.19 ms] mascara 49: manchas=1 personas=22 no persona=14 en zona=1 alarma=00000031 ciclos=86162
+
+cuadros procesados=49  manchas persona=22  no persona=14  eventos=3
+entradas=1 salidas=0 alarma=00000031  en zona=1  manchas=1
+red binaria: Zbb=10273 ciclos, RV32IM=22568 ciclos (aceleracion x2.19)
+ciclos del ultimo cuadro=86162  maximo=87474  (un cuadro de la camara simulada = 191360 ciclos)
+puntuaciones del ultimo recorte: programa (636, -308, -448)  referencia (636, -308, -448)
+registro de eventos:
+   tipo 1  id 1  cuadro 36
+   tipo 3  id 1  cuadro 36
+   tipo 4  id 1  cuadro 39
+
+  ok    camara identificada: PID = 0x76
+  ok    camara identificada: VER = 0x73
+  ok    SCCB: CLKRC = 0x03 (PCLK = XCLK/4)
+  ok    SCCB: TSLB = 0x04 (orden Y U Y V)
+  ok    SCCB: COM8 = 0xE0 (exposicion fija)
+  ok    : silueta de prueba = persona en las 2 versiones
+  ok    red: con Zbb mas rapida que RV32IM
+  ok    perro: ningun evento
+  ok    perro: sin alarma
+  ok    perro: clasificado como no persona
+  ok    persona: 1 entrada contada
+  ok    persona: 0 salidas
+  ok    persona: alarma activa
+  ok    persona: motivo intrusion en zona
+  ok    persona: motivo cruce prohibido
+  ok    eventos: entrada, cruce y zona
+  ok    persona: 1 persona en la zona
+  ok    monitor: letrero INTRUSO parpadeando
+  ok    monitor: recuadro rojo sobre la persona
+  ok    lays: entradas 01, salidas 00, zona 1, manchas 1
+  ok    red: puntuacion = referencia Verilog
+  ok    red: puntuacion = referencia Verilog
+  ok    red: puntuacion = referencia Verilog
+  ok    tiempo real: cabe en un cuadro
+  ok    sin instrucciones ilegales ni desalineadas
+instrucciones=5399344 ciclos=9623841 CPI=1.78
+PRUEBAS: 25  ERRORES: 0
+tb/tb_vigia.v:294: $finish called at 384953781000 (1ps)

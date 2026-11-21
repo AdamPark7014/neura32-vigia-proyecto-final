@@ -1,0 +1,36 @@
+=== ROM de instrucciones de la clase ejecutada en NEURA-32 ===
+x1 = f8a432eb  x2 = 00000005
+  caso  1  add x3, x1, x2  x3 = f8a432f0  ok
+  caso  2  sub x4, x1, x2  x4 = f8a432e6  ok
+  caso  3  and x5, x1, x2  x5 = 00000001  ok
+  caso  4  or x6, x1, x2  x6 = f8a432ef  ok
+  caso  5  xor x7, x1, x2  x7 = f8a432ee  ok
+  caso  6  nota x8, x1  x8 = 075bcd14  ok
+  caso  7  sll x9, x1, x2  x9 = 14865d60  ok
+  caso  8  srl x10, x1, x2  x10 = 07c52197  ok
+  caso  9  passb x11, x2  x11 = 00000005  ok
+  caso 10  min x12, x1, x2  x12 = f8a432eb  ok
+  caso 11  slt x13, x1, x2  x13 = 00000001  ok
+  caso 12  sltu x14, x1, x2  x14 = 00000000  ok
+  caso 13  mul x15, x1, x2  x15 = db34fe97  ok
+  caso 14  mulh x16, x1, x2  x16 = ffffffff  ok
+  caso 15  mulhu x17, x1, x2  x17 = 00000004  ok
+  caso 16  div x18, x1, x2  x18 = fe873d63  ok
+  caso 17  rem x19, x1, x2  x19 = fffffffc  ok
+  caso 18  andn x20, x1, x2  x20 = f8a432ea  ok
+  caso 19  orn x21, x1, x2  x21 = fffffffb  ok
+  caso 20  xnor x22, x1, x2  x22 = 075bcd11  ok
+  caso 21  rol x23, x1, x2  x23 = 14865d7f  ok
+  caso 22  ror x24, x1, x2  x24 = 5fc52197  ok
+  caso 23  sra x25, x1, x2  x25 = ffc52197  ok
+  caso 24  sla x26, x1, x2  x26 = 14865d60  ok
+  caso 25  sext.b x27, x1  x27 = ffffffeb  ok
+  caso 26  sext.h x28, x1  x28 = 000032eb  ok
+  caso 27  zext.h x29, x1  x29 = 000032eb  ok
+  caso 28  clz x30, x1  x30 = 00000000  ok
+  caso 29  ctz x31, x1  x31 = 00000000  ok
+  caso 30  cpop x2, x1  x2 = 00000011  ok
+  caso 31  rev8 x1, x1  x1 = eb32a4f8  ok
+ciclos=105 instrucciones=35
+PRUEBAS: 31  ERRORES: 0
+tb/tb_instrucciones_clase.v:226: $finish called at 1075000 (1ps)

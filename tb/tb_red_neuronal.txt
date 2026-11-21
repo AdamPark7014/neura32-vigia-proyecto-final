@@ -1,0 +1,37 @@
+=== NEURA-32: clasificador neuronal 3x3 (9-16-8, int8) ===
+ROM: codigo hasta 0x00000158, pesos hasta 0x000002c8
+CLASE 0
+caso  0  SW=155  [1 0 1 | 0 1 0 | 1 0 1]  hw=0  ref=0  X  punt=11040  ciclos=3542  instr=2645
+CLASE 1
+caso  1  SW=1ef  [1 1 1 | 1 0 1 | 1 1 1]  hw=1  ref=1  O (anillo)  punt=11257  ciclos=3590  instr=2743
+CLASE 2
+caso  2  SW=0ba  [0 1 0 | 1 1 1 | 0 1 0]  hw=2  ref=2  +  punt=9533  ciclos=3542  instr=2649
+CLASE 3
+caso  3  SW=038  [0 0 0 | 1 1 1 | 0 0 0]  hw=3  ref=3  - (barra)  punt=10247  ciclos=3510  instr=2587
+CLASE 4
+caso  4  SW=092  [0 1 0 | 0 1 0 | 0 1 0]  hw=4  ref=4  | (palo)  punt=9769  ciclos=3510  instr=2587
+CLASE 5
+caso  5  SW=054  [0 0 1 | 0 1 0 | 1 0 0]  hw=5  ref=5  / diagonal  punt=9830  ciclos=3510  instr=2583
+CLASE 6
+caso  6  SW=111  [1 0 0 | 0 1 0 | 0 0 1]  hw=6  ref=6  \ diagonal  punt=10218  ciclos=3510  instr=2583
+CLASE 7
+caso  7  SW=097  [1 1 1 | 0 1 0 | 0 1 0]  hw=7  ref=7  T  punt=10096  ciclos=3542  instr=2651
+CLASE 0
+caso  8  SW=157  [1 1 1 | 0 1 0 | 1 0 1]  hw=0  ref=0  X  punt=8676  ciclos=3558  instr=2677
+CLASE 1
+caso  9  SW=1ff  [1 1 1 | 1 1 1 | 1 1 1]  hw=1  ref=1  O (anillo)  punt=8445  ciclos=3606  instr=2775
+CLASE 2
+caso 10  SW=03a  [0 1 0 | 1 1 1 | 0 0 0]  hw=2  ref=2  +  punt=7235  ciclos=3526  instr=2617
+CLASE 2
+caso 11  SW=03a  [0 1 0 | 1 1 1 | 0 0 0]  hw=2  ref=2  +  punt=7235  ciclos=3526  instr=2617
+CLASE 4
+caso 12  SW=082  [0 1 0 | 0 0 0 | 0 1 0]  hw=4  ref=4  | (palo)  punt=8925  ciclos=3494  instr=2555
+CLASE 5
+caso 13  SW=0d4  [0 0 1 | 0 1 0 | 1 1 0]  hw=5  ref=5  / diagonal  punt=7470  ciclos=3526  instr=2617
+CLASE 6
+caso 14  SW=113  [1 1 0 | 0 1 0 | 0 0 1]  hw=6  ref=6  \ diagonal  punt=8250  ciclos=3526  instr=2617
+CLASE 7
+caso 15  SW=087  [1 1 1 | 0 0 0 | 0 1 0]  hw=7  ref=7  T  punt=9366  ciclos=3526  instr=2619
+promedio: 3534 ciclos y 2632 instrucciones por inferencia, CPI=1.34
+PRUEBAS: 481  ERRORES: 0
+tb/tb_red_neuronal.v:182: $finish called at 565915000 (1ps)

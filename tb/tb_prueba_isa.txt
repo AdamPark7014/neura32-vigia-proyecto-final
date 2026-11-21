@@ -1,0 +1,98 @@
+=== NEURA-32: prueba del repertorio ===
+ROM: 280 palabras de programa (fin en 0x00000460)
+OK
+  ok     0 li (lui+addi) 12345678
+  ok     1 li negativo deadbeef
+  ok     2 add f0e21567
+  ok     3 sub 33869789
+  ok     4 xor cc99e897
+  ok     5 or debdfeff
+  ok     6 and 12241668
+  ok     7 sll 23456780
+  ok     8 srl 0deadbee
+  ok     9 sra fdeadbee
+  ok    10 slt 00000001
+  ok    11 sltu 00000000
+  ok    12 addi 12345677
+  ok    13 slti 00000001
+  ok    14 sltiu 00000001
+  ok    15 xori 12345687
+  ok    16 ori 12345778
+  ok    17 andi 00000070
+  ok    18 slli 45678000
+  ok    19 srli 0000000d
+  ok    20 srai fffffffd
+  ok    21 lui abcde000
+  ok    22 auipc 000000c4
+  ok    23 mul 5621ca08
+  ok    24 mulh fda16776
+  ok    25 mulhsu 0fd5bdee
+  ok    26 mulhu 0fd5bdee
+  ok    27 div f7ab6fbc
+  ok    28 divu 37ab6fbb
+  ok    29 rem ffffffff
+  ok    30 remu 00000003
+  ok    31 div entre cero ffffffff
+  ok    32 rem entre cero 12345678
+  ok    33 sw / lw 12345678
+  ok    34 sb sb sh / lw beef78ef
+  ok    35 lb (signo) ffffffef
+  ok    36 lbu 000000ef
+  ok    37 lh (signo) ffffbeef
+  ok    38 lhu 0000beef
+  ok    39 lb + lh en otras posiciones 00007967
+  ok    40 lw desde la ROM c0def00d
+  ok    41 lazo suma 1..10 00000037
+  ok    42 beq bne blt bge bltu bgeu 000000c0
+  ok    43 jal + ret 000001f4
+  ok    44 jalr 00000204
+  ok    45 adelantamiento EX/MEM/WB 00000014
+  ok    46 carga-uso (detencion) 12345679
+  ok    47 carga -> almacenamiento 12345678
+  ok    48 csr mhartid 00000000
+  ok    49 csr misa 40801100
+  ok    50 csrrw/csrrs mscratch 12345678
+  ok    51 csrrsi 1234567f
+  ok    52 csrrci 12345670
+  ok    53 instret (1 por ciclo) 00000001
+  ok    54 cycle avanza 00000001
+  ok    55 x.popcount 00000018
+  ok    56 x.clz 0000000b
+  ok    57 x.bswap 78563412
+  ok    58 x.rol 23456781
+  ok    59 x.sat_add (satura) 7fffffff
+  ok    60 banderas CSR {C,O,Z,N} 00000004
+  ok    61 x.add.f + x.adc.c (64 bits) 00000001
+  ok    62 x.add8 (SIMD) f0e11467
+  ok    63 x.max8 (SIMD) 12345678
+  ok    64 x.bitrev 1e6a2c48
+  ok    65 x.mul_sat 7fffffff
+  ok    66 x.clamp 0000007f
+  ok    67 x.abs 21524111
+  ok    68 x.sext8 ffffffef
+  ok    69 instruccion ilegal no escribe 0000004d
+  ok    70 div desbordamiento (-2^31/-1) 80000000
+  ok    71 rem desbordamiento (-2^31/-1) 00000000
+  ok    72 andn (Zbb) 00104010
+  ok    73 orn (Zbb) 33765778
+  ok    74 xnor (Zbb) 33661768
+  ok    75 min (Zbb) deadbeef
+  ok    76 minu (Zbb) 12345678
+  ok    77 max (Zbb) 12345678
+  ok    78 maxu (Zbb) deadbeef
+  ok    79 rol (Zbb) 23456781
+  ok    80 ror (Zbb) 81234567
+  ok    81 rori (Zbb) efdeadbe
+  ok    82 clz (Zbb) 00000003
+  ok    83 ctz (Zbb) 00000000
+  ok    84 cpop (Zbb) 0000000d
+  ok    85 sext.b (Zbb) ffffffef
+  ok    86 sext.h (Zbb) ffffbeef
+  ok    87 zext.h (Zbb) 0000beef
+  ok    88 rev8 (Zbb) 78563412
+  ok    89 nota (clase) edcba987
+  ok    90 passb (clase) deadbeef
+  ok    91 sla (clase) 23456780
+ciclos=617  instrucciones=296  CPI=2.08  desalineados=0
+PRUEBAS: 94  ERRORES: 0
+tb/tb_prueba_isa.v:233: $finish called at 6195000 (1ps)
