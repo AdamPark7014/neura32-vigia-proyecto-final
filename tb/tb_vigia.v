@@ -1,5 +1,4 @@
 `timescale 1ns / 1ps
-`include "neura32_defs.vh"
 // ============================================================
 // TESTBENCH DEL SISTEMA COMPLETO — NEURA-32 VIGIA (PROGRAMA = 3)
 //
@@ -19,8 +18,6 @@
 // ============================================================
 module tb_vigia;
 
-    parameter ADELANTAR_CARGAS = 0;   // 1: sin detencion carga-uso (para comparar el CPI)
-
     reg clk50 = 1'b0;
     reg clk = 1'b0;
     reg rst = 1'b1;
@@ -32,9 +29,9 @@ module tb_vigia;
     wire [9:0]  leds;
     wire [23:0] hex;
     wire [7:0]  consola_char;
-    wire        consola_we, fin, instr_ilegal, desalineado;
+    wire        consola_we, fin, instr_ilegal;
     wire [31:0] control;
-    wire [63:0] ciclos, instret;
+    wire [31:0] ciclos, instret;
 
     wire        cam_pclk, cam_href, cam_vsync, cam_sioc, cam_reset_n, cam_pwdn;
     wire [7:0]  cam_d;
@@ -47,7 +44,7 @@ module tb_vigia;
     generador_programa #(.PROGRAMA(3)) gen ();
 
     soc_neura32 #(
-        .USAR_ARCHIVO(0), .SIMULACION(1), .ADELANTAR_CARGAS(ADELANTAR_CARGAS),
+        .ARCHIVO_PROGRAMA("fpga/programa_vigia.txt"), .SIMULACION(1),
         .VID_ANCHO(160), .VID_ALTO(120), .BLOQUE_LOG2(1), .VGA_ESCALA_LOG2(2)
     ) dut (
         .clk(clk), .clk50(clk50), .rst_ext(rst),
@@ -57,27 +54,20 @@ module tb_vigia;
         .cam_pclk(cam_pclk), .cam_href(cam_href), .cam_vsync(cam_vsync), .cam_d(cam_d),
         .cam_sioc(cam_sioc), .cam_siod(cam_siod), .cam_reset_n(cam_reset_n), .cam_pwdn(cam_pwdn),
         .vga_r(vga_r), .vga_g(vga_g), .vga_b(vga_b), .vga_hs(vga_hs), .vga_vs(vga_vs),
-        .fin(fin), .instr_ilegal(instr_ilegal), .desalineado(desalineado),
+        .fin(fin), .instr_ilegal(instr_ilegal),
         .ciclos(ciclos), .instret(instret)
     );
 
     // sensor de 320 x 240 que el programa pone en modo reducido: entrega 160 x 120.
-    // El borrado vertical se alarga para que un cuadro dure lo mismo que antes en ciclos.
-    modelo_ov7670 #(.ANCHO(320), .ALTO(240), .V_BLANCO(136)) camara (
+    // El borrado vertical se alarga para que un cuadro dure 400 000 ciclos: la mitad de lo
+    // que dura en la placa (800 000 ciclos a 31 cuadros por segundo), para no alargar la prueba.
+    modelo_ov7670 #(.ANCHO(320), .ALTO(240), .V_BLANCO(419)) camara (
         .xclk(clk), .resetb(cam_reset_n), .pwdn(cam_pwdn),
         .pclk(cam_pclk), .href(cam_href), .vsync(cam_vsync), .d(cam_d),
         .sioc(cam_sioc), .siod(cam_siod)
     );
 
-    // ---- el programa lo arma el generador (el mismo que escribe la ROM de Quartus) ----
-    integer palabra;
-    task copiar_programa;
-        begin
-            for (palabra = 0; palabra < 4096; palabra = palabra + 1)
-                dut.rom.memoria[palabra] = gen.memoria[palabra];
-            // la misma imagen la escribe tb/generar_rom.v en fpga/programa_vigia.txt para Quartus
-        end
-    endtask
+    // el programa sale de fpga/programa_vigia.txt (lo escribe tb/generar_rom.v)
 
     // ---- variables del programa en la RAM ----
     localparam VR_PID = 8, VR_VER = 12, VR_CUADRO = 16, VR_ENTRADAS = 20, VR_SALIDAS = 24;
@@ -87,7 +77,7 @@ module tb_vigia;
 
     function [31:0] ram;
         input integer desp;
-        ram = dut.ram.palabra(desp / 4);
+        ram = dut.cpu.palabra(desp / 4);
     endfunction
 
     // ---- consola ----
@@ -98,18 +88,17 @@ module tb_vigia;
 
     // ---- avance: una linea por cada mascara que procesa el programa ----
     integer ultimo_cuadro = 0;
-    always @(posedge clk) if (!rst && dut.ram.palabra(VR_CUADRO / 4) != ultimo_cuadro) begin
-        ultimo_cuadro = dut.ram.palabra(VR_CUADRO / 4);
+    always @(posedge clk) if (!rst && dut.cpu.palabra(VR_CUADRO / 4) != ultimo_cuadro) begin
+        ultimo_cuadro = dut.cpu.palabra(VR_CUADRO / 4);
         $display("[%t] mascara %0d: manchas=%0d personas=%0d no persona=%0d en zona=%0d alarma=%02h ciclos=%0d",
                  $time, ultimo_cuadro, ram(VR_NBLOBS), ram(VR_PERSONAS), ram(VR_NO_PERSONA),
                  ram(VR_EN_ZONA), ram(VR_ALARMA), ram(VR_CICLOS));
         $fflush;
     end
 
-    integer ilegales = 0, desalineados = 0;
+    integer ilegales = 0;
     always @(posedge clk) begin
         if (!rst && instr_ilegal) ilegales = ilegales + 1;
-        if (!rst && desalineado)  desalineados = desalineados + 1;
     end
 
     // ---- modelo de referencia de la red binaria ----
@@ -202,14 +191,13 @@ module tb_vigia;
     integer k2;
 
     initial begin
-        #(40 * 25_000_000);                    // 1 s de simulacion como limite
+        #(40 * 75_000_000);                    // 3 s de simulacion como limite
         $display("TIEMPO AGOTADO");
         $finish;
     end
 
     initial begin
         $timeformat(-3, 2, " ms", 10);
-        #1 copiar_programa;
         cargar_pesos_vigia;
         $display("=== NEURA-32 VIGIA: sistema completo con camara OV7670 simulada ===");
         $display("ROM: %0d palabras (codigo %0d, tablas y pesos %0d)",
@@ -257,7 +245,7 @@ module tb_vigia;
                  ram(VR_BENCH_X), ram(VR_BENCH_R), ram(VR_BENCH_R) / ram(VR_BENCH_X),
                  (ram(VR_BENCH_R) * 100 / ram(VR_BENCH_X)) % 100);
         $display("ciclos del ultimo cuadro=%0d  maximo=%0d  (un cuadro de la camara simulada = %0d ciclos)",
-                 ram(VR_CICLOS), ram(VR_MAX_CICLOS), (160 + 24) * 2 * (2 + 136 + 120 + 2) * 2);
+                 ram(VR_CICLOS), ram(VR_MAX_CICLOS), (160 + 24) * 2 * (2 + 419 + 120 + 2) * 2);
         $display("puntuaciones del ultimo recorte: programa (%0d, %0d, %0d)  referencia (%0d, %0d, %0d)",
                  $signed(ram(VR_PUNT)), $signed(ram(VR_PUNT + 4)), $signed(ram(VR_PUNT + 8)),
                  ref_punt[0], ref_punt[1], ref_punt[2]);
@@ -291,8 +279,8 @@ module tb_vigia;
         revisar(hex == 24'h010011,                             "displays: entradas 01, salidas 00, zona 1, manchas 1");
         for (k2 = 0; k2 < 3; k2 = k2 + 1)
             revisar($signed(ram(VR_PUNT + 4 * k2)) == ref_punt[k2], "red: puntuacion = referencia Verilog");
-        revisar(ram(VR_MAX_CICLOS) < (160 + 24) * 2 * (2 + 136 + 120 + 2) * 2, "tiempo real: cabe en un cuadro");
-        revisar(ilegales == 0 && desalineados == 0,            "sin instrucciones ilegales ni desalineadas");
+        revisar(ram(VR_MAX_CICLOS) < 800000, "tiempo real: cabe en un cuadro de la placa (800 000 ciclos)");
+        revisar(ilegales == 0,                                 "sin instrucciones que no existan");
 
         $display("instrucciones=%0d ciclos=%0d CPI=%0d.%02d", instret, ciclos,
                  ciclos / instret, (ciclos * 100 / instret) % 100);

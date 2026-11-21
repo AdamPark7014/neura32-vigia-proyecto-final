@@ -1,26 +1,22 @@
 `timescale 1ns / 1ps
 // ============================================================
-// SoC NEURA-32 VIGIA: nucleo + memoria de programa + RAM + mascara +
-// perifericos + camara OV7670 + tuberia de vision + VGA + cargador de
-// programas por JTAG
+// SISTEMA NEURA-32 VIGIA: el procesador (riscv_neura) con sus entradas
+// y salidas: LED, interruptores, displays, camara OV7670, vision y
+// monitor VGA, mas el cargador de programas por JTAG.
 //
 // MAPA DE MEMORIA
-//   0x0000_0000 - 0x0000_3FFF  ROM de programa (16 KB, tambien legible como datos)
-//   0x1000_0000 - 0x1000_3FFF  RAM de datos (16 KB)
-//   0x2000_0000 - 0x2000_12BF  mascara de movimiento 80 x 60 (1 byte por pixel, solo lectura)
-//   0xFFFF_0000 - 0xFFFF_003F  perifericos (LED, SW, HEX, KEY, consola, ...)
+//   0x0000_0000 - 0x0000_3FFF  memoria de programa (dentro del procesador)
+//   0x1000_0000 - 0x1000_3FFF  memoria de datos (dentro del procesador)
+//   0x2000_0000 - 0x2000_12BF  mascara de movimiento 80 x 60 (1 byte por celda, solo lectura)
+//   0xFFFF_0000 - 0xFFFF_003F  perifericos (LED, SW, HEX, KEY, contador de ciclos, consola)
 //   0xFFFF_0040 - 0xFFFF_009F  camara y vision (SCCB, captura, zona, linea, cajas)
 //
-// Las memorias son sincronas: la direccion llega desde EX y el dato sale
-// en MEM. Los perifericos se leen y escriben en MEM.
+// El procesador pone la direccion un ciclo antes (io_addr_pre) para la
+// mascara, que es una memoria sincrona; los registros se leen con io_addr.
 // ============================================================
 module soc_neura32 #(
-    parameter ARCHIVO_PROGRAMA = "programa_vigia.txt",
-    parameter USAR_ARCHIVO     = 1,
-    parameter ADELANTAR_CARGAS = 0,
+    parameter ARCHIVO_PROGRAMA = "programa_vigia.txt",   // instrucciones en hexadecimal
     parameter SIMULACION       = 0,
-    parameter ROM_ADDR_WIDTH   = 12,
-    parameter RAM_ADDR_WIDTH   = 12,
     // video: placa 320 x 240 (la camara ya lo entrega reducido) y deteccion 80 x 60
     parameter VID_ANCHO        = 320,
     parameter VID_ALTO         = 240,
@@ -58,14 +54,13 @@ module soc_neura32 #(
     output wire        vga_hs,
     output wire        vga_vs,
 
-    output wire        fin,
+    output wire        fin,          // el programa termino (ecall)
     output wire        instr_ilegal,
-    output wire        desalineado,
-    output wire [63:0] ciclos,
-    output wire [63:0] instret
+    output wire [31:0] ciclos,
+    output wire [31:0] instret
 );
     // ---------------- cargador de programas (JTAG) ----------------
-    // Mientras la PC escribe otro programa, todo el SoC queda en reinicio.
+    // Mientras la PC escribe otro programa, todo el sistema queda en reinicio.
     wire        cargar_we, detener;
     wire [11:0] cargar_dir;
     wire [31:0] cargar_dato;
@@ -76,61 +71,31 @@ module soc_neura32 #(
         .halt(detener), .leds(leds), .hex(hex)
     );
 
-    wire rst = rst_ext | detener;
+    wire rst = rst_ext | detener;    // reinicio de los perifericos (activo en alto)
 
-    // ---------------- nucleo ----------------
-    wire [31:0] imem_dir, imem_instr;
-    wire        imem_en;
-    wire [31:0] dmem_dir_e, dmem_dato_esc_e;
-    wire [3:0]  dmem_be_e;
-    wire        dmem_we_e, dmem_re_e;
-    wire [31:0] dmem_dir, dmem_dato_esc, dmem_dato_lec;
-    wire [3:0]  dmem_be;
-    wire        dmem_we, dmem_re;
+    // ---------------- procesador ----------------
+    wire [31:0] io_addr_pre, io_addr, io_wdata, io_rdata, resultado;
+    wire        io_we, io_re;
 
-    nucleo_neura32 #(.ADELANTAR_CARGAS(ADELANTAR_CARGAS)) nucleo (
-        .clk(clk), .rst(rst),
-        .imem_dir(imem_dir), .imem_en(imem_en), .imem_instr(imem_instr),
-        .dmem_dir_e(dmem_dir_e), .dmem_dato_esc_e(dmem_dato_esc_e), .dmem_be_e(dmem_be_e),
-        .dmem_we_e(dmem_we_e), .dmem_re_e(dmem_re_e),
-        .dmem_dir(dmem_dir), .dmem_dato_esc(dmem_dato_esc), .dmem_be(dmem_be),
-        .dmem_we(dmem_we), .dmem_re(dmem_re), .dmem_dato_lec(dmem_dato_lec),
-        .fin(fin), .instr_ilegal(instr_ilegal), .desalineado(desalineado),
-        .ciclos(ciclos), .instret(instret)
+    riscv_neura #(.INIT_FILE(ARCHIVO_PROGRAMA)) cpu (
+        .clk(clk), .rst(~rst),
+        .result_out(resultado),
+        .io_addr_pre(io_addr_pre), .io_addr(io_addr), .io_wdata(io_wdata),
+        .io_we(io_we), .io_re(io_re), .io_rdata(io_rdata),
+        .load_we(cargar_we), .load_addr(cargar_dir), .load_data(cargar_dato),
+        .halted(fin), .illegal(instr_ilegal), .cycles(ciclos), .instrs(instret)
     );
 
     // ---------------- decodificacion de direcciones ----------------
-    wire sel_ram_e   = (dmem_dir_e[31:28] == 4'h1);
-    wire sel_rom_m   = (dmem_dir[31:28] == 4'h0);
-    wire sel_ram_m   = (dmem_dir[31:28] == 4'h1);
-    wire sel_msk_m   = (dmem_dir[31:28] == 4'h2);
-    wire sel_perif_m = (dmem_dir[31:16] == 16'hFFFF);
-    wire sel_vis_m   = sel_perif_m && (dmem_dir[7:6] != 2'b00);   // 0x40 en adelante
-
-    // ---------------- ROM de programa (doble puerto, sincrona) ----------------
-    wire [31:0] rom_dato;
-    rom_instrucciones #(
-        .addr_width(ROM_ADDR_WIDTH), .data_width(32),
-        .archivo(ARCHIVO_PROGRAMA), .usar_archivo(USAR_ARCHIVO)
-    ) rom (
-        .clk(clk), .en_instr(imem_en),
-        .dir_instr(imem_dir), .instr(imem_instr),
-        .dir_dato(dmem_dir_e), .dato(rom_dato),
-        .cargar_we(cargar_we), .cargar_dir(cargar_dir[ROM_ADDR_WIDTH-1:0]), .cargar_dato(cargar_dato)
-    );
-
-    // ---------------- RAM de datos (sincrona) ----------------
-    wire [31:0] ram_dato;
-    ram_datos #(.addr_width(RAM_ADDR_WIDTH), .data_width(32)) ram (
-        .clk(clk), .dir(dmem_dir_e), .dato_esc(dmem_dato_esc_e), .be(dmem_be_e),
-        .we(dmem_we_e & sel_ram_e), .dato_lec(ram_dato)
-    );
+    wire sel_msk   = (io_addr[31:28] == 4'h2);
+    wire sel_perif = (io_addr[31:16] == 16'hFFFF);
+    wire sel_vis   = sel_perif && (io_addr[7:6] != 2'b00);   // 0x40 en adelante
 
     // ---------------- perifericos basicos ----------------
     wire [31:0] perif_dato, ticks, lfsr;
     perifericos #(.SIMULACION(SIMULACION)) perif (
         .clk(clk), .rst(rst),
-        .dir(dmem_dir), .dato_esc(dmem_dato_esc), .we(dmem_we & sel_perif_m & ~sel_vis_m),
+        .dir(io_addr), .dato_esc(io_wdata), .we(io_we & sel_perif & ~sel_vis),
         .dato_lec(perif_dato),
         .interruptores(interruptores), .botones(botones),
         .leds(leds), .hex(hex),
@@ -158,7 +123,7 @@ module soc_neura32 #(
 
     registros_vision regs_vision (
         .clk(clk), .rst(rst),
-        .offset(dmem_dir[7:0]), .we(dmem_we & sel_vis_m), .dato_esc(dmem_dato_esc), .dato_lec(vis_dato),
+        .offset(io_addr[7:0]), .we(io_we & sel_vis), .dato_esc(io_wdata), .dato_lec(vis_dato),
         .cam_sioc(cam_sioc), .cam_siod_bajo(siod_bajo), .cam_reset_n(cam_reset_n), .cam_pwdn(cam_pwdn),
         .cam_fase(cam_fase), .cam_siod_in(cam_siod),
         .vis_habilita(vis_habilita), .vis_umbral(vis_umbral), .vis_alfa(vis_alfa),
@@ -186,14 +151,12 @@ module soc_neura32 #(
         .listo(vis_listo), .banco_lec(vis_banco), .cuadros(vis_cuadros), .pixeles_fg(vis_pixeles_fg),
         .zona(zona), .linea(linea), .letrero(letrero), .cajas(cajas), .colores(colores),
         .hud_personas(hud_personas), .hud_eventos(hud_eventos),
-        .cpu_msk_dir(dmem_dir_e[12:2]), .cpu_msk_dato(msk_dato),
+        .cpu_msk_dir(io_addr_pre[12:2]), .cpu_msk_dato(msk_dato),
         .vga_r(vga_r), .vga_g(vga_g), .vga_b(vga_b), .vga_hs(vga_hs), .vga_vs(vga_vs)
     );
 
-    // ---------------- dato leido (etapa MEM) ----------------
-    assign dmem_dato_lec = sel_ram_m   ? ram_dato   :
-                           sel_rom_m   ? rom_dato   :
-                           sel_msk_m   ? msk_dato   :
-                           sel_vis_m   ? vis_dato   :
-                           sel_perif_m ? perif_dato : 32'd0;
+    // ---------------- dato que lee el procesador ----------------
+    assign io_rdata = sel_msk   ? msk_dato   :
+                      sel_vis   ? vis_dato   :
+                      sel_perif ? perif_dato : 32'd0;
 endmodule

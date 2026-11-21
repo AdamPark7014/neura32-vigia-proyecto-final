@@ -1,5 +1,4 @@
 `timescale 1ns / 1ps
-`include "neura32_defs.vh"
 // ============================================================
 // TESTBENCH AUTOVERIFICABLE — CLASIFICADOR NEURONAL (PROGRAMA = 1)
 // Para cada patron de 3x3 (valor de SW) se reinicia el SoC, se deja
@@ -10,8 +9,6 @@
 // ============================================================
 module tb_red_neuronal;
 
-    parameter ADELANTAR_CARGAS = 0;   // 1: sin detencion carga-uso (para comparar el CPI)
-
     reg clk = 1'b0;
     reg rst = 1'b1;
     always #5 clk = ~clk;
@@ -20,32 +17,27 @@ module tb_red_neuronal;
     wire [9:0]  leds;
     wire [23:0] hex;
     wire [7:0]  consola_char;
-    wire        consola_we, fin, instr_ilegal, desalineado;
+    wire        consola_we, fin, instr_ilegal;
     wire [31:0] control;
-    wire [63:0] ciclos, instret;
+    wire [31:0] ciclos, instret;
 
     generador_programa #(.PROGRAMA(1)) gen ();
 
     wire cam_siod;
     pullup (cam_siod);
 
-    soc_neura32 #(.USAR_ARCHIVO(0), .ADELANTAR_CARGAS(ADELANTAR_CARGAS), .SIMULACION(1)) dut (
+    soc_neura32 #(.ARCHIVO_PROGRAMA("fpga/programa_red.txt"), .SIMULACION(1)) dut (
         .clk(clk), .clk50(clk), .rst_ext(rst),
         .interruptores(sw), .botones(2'b11),
         .leds(leds), .hex(hex),
         .consola_char(consola_char), .consola_we(consola_we), .control(control),
-        .fin(fin), .instr_ilegal(instr_ilegal), .desalineado(desalineado),
+        .fin(fin), .instr_ilegal(instr_ilegal),
         .cam_pclk(1'b0), .cam_href(1'b0), .cam_vsync(1'b0), .cam_d(8'd0),
-        .cam_sioc(), .cam_siod(cam_siod), .cam_reset_n(), .cam_pwdn(),
+        .cam_sioc(), .cam_siod(cam_siod), .cam_reset_n(), .cam_pwdn(), .cam_fase(),
         .vga_r(), .vga_g(), .vga_b(), .vga_hs(), .vga_vs(),
         .ciclos(ciclos), .instret(instret)
     );
-    // ---- el programa lo arma el generador (ensamblador en Verilog) y se copia a la ROM ----
-    integer palabra;
-    task copiar_programa;
-        for (palabra = 0; palabra < 4096; palabra = palabra + 1)
-            dut.rom.memoria[palabra] = gen.memoria[palabra];
-    endtask
+    // el programa sale de fpga/programa_red.txt (lo escribe tb/generar_rom.v)
 
 
     // ---- consola ----
@@ -105,7 +97,6 @@ module tb_red_neuronal;
     integer c, k, errores = 0, pruebas = 0, limite, clase_hw, punt_hw, total_ciclos = 0, total_instr = 0;
 
     initial begin
-        #1 copiar_programa;
         cargar_pesos;
         for (c = 0; c < 8; c = c + 1) begin
             caso[c]     = red_plantilla(c);
@@ -126,8 +117,8 @@ module tb_red_neuronal;
             repeat (2) @(posedge clk);
 
             modelo_referencia(caso[c]);
-            clase_hw = dut.ram.palabra(0);
-            punt_hw  = dut.ram.palabra(1 + ref_clase);
+            clase_hw = dut.cpu.palabra(0);
+            punt_hw  = dut.cpu.palabra(1 + ref_clase);
             total_ciclos = total_ciclos + ciclos;
             total_instr  = total_instr  + instret;
 
@@ -144,16 +135,16 @@ module tb_red_neuronal;
 
             for (k = 0; k < 8; k = k + 1) begin
                 pruebas = pruebas + 1;
-                if ($signed(dut.ram.palabra(1 + k)) !== ref_punt[k]) begin
+                if ($signed(dut.cpu.palabra(1 + k)) !== ref_punt[k]) begin
                     errores = errores + 1;
-                    $display("   FALLA: puntuacion[%0d] = %0d, esperada %0d", k, $signed(dut.ram.palabra(1 + k)), ref_punt[k]);
+                    $display("   FALLA: puntuacion[%0d] = %0d, esperada %0d", k, $signed(dut.cpu.palabra(1 + k)), ref_punt[k]);
                 end
             end
             for (k = 0; k < 16; k = k + 1) begin
                 pruebas = pruebas + 1;
-                if (dut.ram.octeto(256 + k) !== ref_act[k][7:0]) begin
+                if (dut.cpu.octeto(256 + k) !== ref_act[k][7:0]) begin
                     errores = errores + 1;
-                    $display("   FALLA: activacion[%0d] = %0d, esperada %0d", k, dut.ram.octeto(256 + k), ref_act[k]);
+                    $display("   FALLA: activacion[%0d] = %0d, esperada %0d", k, dut.cpu.octeto(256 + k), ref_act[k]);
                 end
             end
 

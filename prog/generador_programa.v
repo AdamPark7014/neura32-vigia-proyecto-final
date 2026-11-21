@@ -1,5 +1,4 @@
 `timescale 1ns / 1ps
-`include "neura32_defs.vh"
 // ============================================================
 // GENERADOR DE PROGRAMAS (ensamblador RISC-V escrito en Verilog)
 // No es hardware: arma la ROM con el codificador de
@@ -28,7 +27,7 @@ module generador_programa #(
 
     integer i;
     initial begin
-        for (i = 0; i < PALABRAS; i = i + 1) memoria[i] = `NOP;
+        for (i = 0; i < PALABRAS; i = i + 1) memoria[i] = NOP_WORD;
         cargar_pesos;
         cargar_pesos_vigia;
         case (PROGRAMA)

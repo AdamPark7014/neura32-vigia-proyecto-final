@@ -75,7 +75,7 @@ module top_vigia (
     wire [23:0] hex;
 
     soc_neura32 #(
-        .ARCHIVO_PROGRAMA("programa_vigia.txt"), .USAR_ARCHIVO(1), .SIMULACION(0),
+        .ARCHIVO_PROGRAMA("programa_vigia.txt"), .SIMULACION(0),
         .VID_ANCHO(320), .VID_ALTO(240), .BLOQUE_LOG2(2), .VGA_ESCALA_LOG2(1)
     ) soc (
         .clk(clk), .clk50(MAX10_CLK1_50), .rst_ext(rst),
@@ -86,7 +86,7 @@ module top_vigia (
         .cam_sioc(cam_sioc), .cam_siod(GPIO[1]), .cam_reset_n(cam_reset_n), .cam_pwdn(cam_pwdn),
         .cam_fase(cam_fase),
         .vga_r(VGA_R), .vga_g(VGA_G), .vga_b(VGA_B), .vga_hs(VGA_HS), .vga_vs(VGA_VS),
-        .fin(), .instr_ilegal(), .desalineado(), .ciclos(), .instret()
+        .fin(), .instr_ilegal(), .ciclos(), .instret()
     );
 
     // ---------------- displays de 7 segmentos (activos en bajo, punto apagado) ----------------

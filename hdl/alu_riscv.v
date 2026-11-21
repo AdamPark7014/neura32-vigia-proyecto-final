@@ -1,299 +1,192 @@
-`timescale 1ns / 1ps
-`include "neura32_defs.vh"
-// ============================================================
-// ALU RISC-V DE 32 BITS (Practica 3, version del proyecto)
+//ALU de 32 bits (la de la clase, ampliada)
+//Entra el opcode de la instruccion (su tipo) y alu_op, que es el funct3 de la instruccion:
+//siempre 3 bits, 8 operaciones por opcode. Para tener mas de 8 operaciones del tipo R no se
+//alarga alu_op: se agregan opcodes del mismo tipo (OP_R1, OP_R2, OP_R3), y lo mismo con las
+//que llevan inmediato (OP_I1, OP_I2).
 //
-// La ALU recibe la instruccion y decide la operacion con sus campos.
-// Formato tipo R (32 bits):
+//  | funct7 (7) | rs2 (5) | rs1 (5) | funct3 (3) | rd (5) | opcode (7) |   = 32 bits
 //
-//   | funct7 (7) | rs2 (5) | rs1 (5) | funct3 (3) | rd (5) | opcode (7) |
-//     31      25   24   20   19   15   14      12   11   7   6        0
+//  alu_op   OP_R1 / OP_I1      OP_R2 / OP_I2      OP_R3             OP_BRANCH
+//   000     add                sub                divu (divisor)    beq   A == B
+//   001     mul                slt                remu (divisor)    bne   A != B
+//   010     and                sltu               cpop
+//   011     or                 sra                abs
+//   100     xor                xnor               sgt               blt   A <  B
+//   101     nota  (~A)         min                clamp             bge   A >= B
+//   110     sll                minu                                 bltu  sin signo
+//   111     srl                max                                  bgeu  sin signo
 //
-// rs1, rs2 y rd escogen registros (eso lo hace el banco de registros);
-// aqui se usan opcode, funct3 y funct7 en tres case anidados:
-//
-//   case (opcode)          que tipo de instruccion es
-//     case (funct3)        que operacion (3 bits)
-//       case (funct7)      que variante (suma o resta, logico o aritmetico...)
-//
-// Solo trae las operaciones del repertorio de NEURA-32 Vigia:
-//   RV32I   add sub sll slt sltu xor srl sra or and  (y las mismas con inmediato)
-//   RV32M   mul mulh mulhsu mulhu   (div divu rem remu: divisor_iterativo)
-//   Zbb     andn orn xnor min minu max maxu rol ror rori
-//           clz ctz cpop sext.b sext.h zext.h rev8
-//   clase   nota passb sla          (custom-0, las de la ROM del laboratorio)
-//   Xneura  abs sgt clamp           (custom-1, las que pide el programa)
-// En cargas, almacenamientos, auipc y saltos suma (direccion); en los
-// saltos condicionales resta y deja las banderas; en lui deja pasar B.
-// ============================================================
+//OP_R1 es la tabla original de la clase (el programa (a + b) * c corre igual).
+//En cargas, almacenamientos y jalr la ALU suma (direccion); en lui deja pasar B.
 module alu_riscv (
-    input  wire [31:0] instr,    // instruccion que esta en la etapa EX
-    input  wire [31:0] A,        // operando A: rs1 (o el PC)
-    input  wire [31:0] B,        // operando B: rs2 (o el inmediato)
+	input wire [31:0] A, B,
+	input wire [6:0] opcode, //de 7 bits para RiscV, Tipo de instruccion
+	input wire [2:0] alu_op, //La operacion a realizar (funct3) ej. Add, sub, xor, sll, srl
+	output reg	[31:0] result,
+	output wire C, O, Z, N
+	);
 
-    output reg  [31:0] result,
-    output reg         ilegal,   // esa combinacion de funct3 / funct7 no existe
-    output wire        C,        // acarreo (en la resta: 1 si no hubo prestamo)
-    output wire        O,        // desbordamiento con signo
-    output wire        Z,        // resultado cero
-    output wire        N         // resultado negativo
-);
+	// Codigos de operacion de la ALU (OP_R1 y OP_I1)
+	localparam	ALU_ADD = 3'b000;
+	localparam	ALU_MUL = 3'b001;
+	localparam	ALU_AND = 3'b010;
+	localparam	ALU_OR = 3'b011;
+	localparam	ALU_XOR = 3'b100;
+	localparam	ALU_NOTA = 3'b101;
+	localparam	ALU_SLL = 3'b110;
+	localparam	ALU_SRL = 3'b111;
 
-// ---------------- campos de la instruccion ----------------
-wire [6:0] funct7 = instr[31:25];
-wire [4:0] rs2    = instr[24:20];   // en clz/ctz/cpop/sext y rev8 dice cual es
-wire [2:0] funct3 = instr[14:12];
-wire [6:0] opcode = instr[6:0];
+	// Codigos de operacion de la ALU (OP_R2 y OP_I2)
+	localparam	ALU_SUB = 3'b000;
+	localparam	ALU_SLT = 3'b001;
+	localparam	ALU_SLTU = 3'b010;
+	localparam	ALU_SRA = 3'b011;
+	localparam	ALU_XNOR = 3'b100;
+	localparam	ALU_MIN = 3'b101;
+	localparam	ALU_MINU = 3'b110;
+	localparam	ALU_MAX = 3'b111;
 
-// valores de funct7
-localparam F7_BASE   = 7'b0000000;  // RV32I
-localparam F7_NEG    = 7'b0100000;  // sub, sra y las negadas de Zbb
-localparam F7_MUL    = 7'b0000001;  // RV32M
-localparam F7_MINMAX = 7'b0000101;  // Zbb: min, minu, max, maxu
-localparam F7_ROT    = 7'b0110000;  // Zbb: rol, ror y las de un operando
-localparam F7_ZEXT   = 7'b0000100;  // Zbb: zext.h
-localparam F7_REV8   = 7'b0110100;  // Zbb: rev8
+	// Codigos de operacion de la ALU (OP_R3)
+	localparam	ALU_DIVU = 3'b000;  //la hace el divisor (divider.v)
+	localparam	ALU_REMU = 3'b001;  //la hace el divisor
+	localparam	ALU_CPOP = 3'b010;
+	localparam	ALU_ABS = 3'b011;
+	localparam	ALU_SGT = 3'b100;
+	localparam	ALU_CLAMP = 3'b101;
 
-// ---------------- sumas y productos ----------------
-wire [4:0]  shamt = B[4:0];
+	// Comparaciones de los saltos (OP_BRANCH)
+	localparam	ALU_BEQ = 3'b000;
+	localparam	ALU_BNE = 3'b001;
+	localparam	ALU_BLT = 3'b100;
+	localparam	ALU_BGE = 3'b101;
+	localparam	ALU_BLTU = 3'b110;
+	localparam	ALU_BGEU = 3'b111;
 
-// 33 bits: el bit 32 es el acarreo. La resta es A + ~B + 1, asi que su
-// bit 32 vale 1 cuando no hubo prestamo (A >= B).
-wire [32:0] add_ext = {1'b0, A} + {1'b0, B};
-wire [32:0] sub_ext = {1'b0, A} + {1'b0, ~B} + 33'd1;
+	// OPCODES
+	localparam OP_R1	= 7'b0110011;  //tipo R, tabla 1 (la de la clase)
+	localparam OP_R2	= 7'b0111011;  //tipo R, tabla 2
+	localparam OP_R3	= 7'b1011011;  //tipo R, tabla 3
+	localparam OP_I1	= 7'b0010011;  //tipo I, tabla 1 con inmediato
+	localparam OP_I2	= 7'b0011011;  //tipo I, tabla 2 con inmediato
+	localparam OP_LOAD	= 7'b0000011;
+	localparam OP_STORE	= 7'b0100011;
+	localparam OP_BRANCH	= 7'b1100011;
+	localparam OP_LUI	= 7'b0110111;
+	localparam OP_JALR	= 7'b1100111;
 
-wire ovf_add = (A[31] == B[31]) && (add_ext[31] != A[31]);
-wire ovf_sub = (A[31] != B[31]) && (sub_ext[31] != A[31]);
+	wire [32:0] sum_ext = {1'b0,A} + {1'b0,B};
+	wire [32:0] sub_ext = {1'b0,A} - {1'b0,B};
+	wire [31:0] sum = sum_ext[31:0];
+	wire [31:0] sub = sub_ext[31:0];
+	// Overflow con signo
+	wire ovf_add = (~A[31] & ~B[31] & sum[31]) | (A[31] & B[31] & ~sum[31]);
+	wire ovf_sub = (~A[31] & B[31] & sub[31]) | (A[31] & ~B[31] & ~sub[31]);
+	// Corrimientos
+	wire [4:0] shamt = B[4:0];
+	wire [31:0] sll_out = A << shamt;
+	wire [31:0] srl_out = A >> shamt;
+	wire [31:0] sra_out = $signed(A) >>> shamt;
 
-wire signed [63:0] mul_ss = $signed(A) * $signed(B);
-wire        [63:0] mul_uu = A * B;
-wire signed [63:0] mul_su = $signed(A) * $signed({1'b0, B});
+	// Multiplicador combinacional (32 bits bajos)
+	wire [31:0] mul_out = A * B;
 
-wire menor_s = ($signed(A) < $signed(B));
-wire menor_u = (A < B);
+	// Comparaciones
+	wire lt_s = ($signed(A) < $signed(B));  //menor con signo
+	wire lt_u = (A < B);                    //menor sin signo
+	wire eq = (A == B);
 
-wire [31:0] rota_izq = (shamt == 0) ? A : ((A << shamt) | (A >> (6'd32 - shamt)));
-wire [31:0] rota_der = (shamt == 0) ? A : ((A >> shamt) | (A << (6'd32 - shamt)));
+	// Conteo de unos en arbol: se suman los bits por parejas, luego las parejas por
+	// cuartetos, los cuartetos por bytes, los bytes por mitades y las dos mitades.
+	// Es la operacion de la red neuronal binaria (xnor + cpop).
+	wire [31:0] c1 = (A & 32'h55555555) + ((A >> 1) & 32'h55555555);
+	wire [31:0] c2 = (c1 & 32'h33333333) + ((c1 >> 2) & 32'h33333333);
+	wire [31:0] c4 = (c2 & 32'h0F0F0F0F) + ((c2 >> 4) & 32'h0F0F0F0F);
+	wire [31:0] c8 = (c4 & 32'h00FF00FF) + ((c4 >> 8) & 32'h00FF00FF);
+	wire [31:0] cpop_out = (c8 & 32'h0000FFFF) + (c8 >> 16);
 
-// ---------------- funciones ----------------
-// Ceros a la izquierda por mitades: se pregunta por 16, 8, 4, 2 y 1 bits
-function [31:0] count_leading_zeros;
-    input [31:0] v;
-    reg   [31:0] x;
-    reg   [5:0]  n;
-    begin
-        x = v; n = 6'd0;
-        if (x[31:16] == 16'd0) begin n = n + 6'd16; x = x << 16; end
-        if (x[31:24] == 8'd0)  begin n = n + 6'd8;  x = x << 8;  end
-        if (x[31:28] == 4'd0)  begin n = n + 6'd4;  x = x << 4;  end
-        if (x[31:30] == 2'd0)  begin n = n + 6'd2;  x = x << 2;  end
-        if (x[31]    == 1'b0)  begin n = n + 6'd1;               end
-        count_leading_zeros = (v == 32'd0) ? 32'd32 : {26'd0, n};
-    end
-endfunction
+	// Guardar Carrys
+	reg carry_flag, ovf_flag;
 
-// Ceros a la derecha: lo mismo, empezando por la mitad baja
-function [31:0] count_trailing_zeros;
-    input [31:0] v;
-    reg   [31:0] x;
-    reg   [5:0]  n;
-    begin
-        x = v; n = 6'd0;
-        if (x[15:0] == 16'd0) begin n = n + 6'd16; x = x >> 16; end
-        if (x[7:0]  == 8'd0)  begin n = n + 6'd8;  x = x >> 8;  end
-        if (x[3:0]  == 4'd0)  begin n = n + 6'd4;  x = x >> 4;  end
-        if (x[1:0]  == 2'd0)  begin n = n + 6'd2;  x = x >> 2;  end
-        if (x[0]    == 1'b0)  begin n = n + 6'd1;               end
-        count_trailing_zeros = (v == 32'd0) ? 32'd32 : {26'd0, n};
-    end
-endfunction
+	// Ahora si, empieza la ALU: primero el opcode y adentro la operacion
+	always @(*) begin
+		result = 32'b0;
+		carry_flag = 1'b0;
+		ovf_flag = 1'b0;
 
-// Conteo de unos en arbol: bits por parejas, parejas por cuartetos,
-// cuartetos por bytes, bytes por mitades y las dos mitades (5 niveles).
-// Es la operacion que mas usa la red neuronal binaria (xnor + cpop).
-function [31:0] popcount;
-    input [31:0] v;
-    reg   [31:0] s1, s2, s4, s8;
-    begin
-        s1 = (v  & 32'h55555555) + ((v  >> 1) & 32'h55555555);
-        s2 = (s1 & 32'h33333333) + ((s1 >> 2) & 32'h33333333);
-        s4 = (s2 & 32'h0F0F0F0F) + ((s2 >> 4) & 32'h0F0F0F0F);
-        s8 = (s4 & 32'h00FF00FF) + ((s4 >> 8) & 32'h00FF00FF);
-        popcount = (s8 & 32'h0000FFFF) + (s8 >> 16);
-    end
-endfunction
+		case(opcode)
+			//---------------- tabla 1: la de la clase ----------------
+			OP_R1, OP_I1: begin
+				case(alu_op)
+					ALU_ADD: begin result = sum; carry_flag = sum_ext[32]; ovf_flag = ovf_add; end
+					ALU_MUL: result = mul_out;
+					ALU_AND: result = A & B;
+					ALU_OR: result = A | B;
+					ALU_XOR: result = A ^ B;
+					ALU_NOTA: result = ~A ;
+					ALU_SLL: result = sll_out;
+					ALU_SRL: result = srl_out;
+					default: result = 32'b0;
+				endcase
+			end
 
-// ============================================================
-// ALU PRINCIPAL: case (opcode) -> case (funct3) -> case (funct7)
-// ============================================================
-always @(*) begin
-    result = add_ext[31:0];                 // por defecto suma
-    ilegal = 1'b0;
+			//---------------- tabla 2 ----------------
+			OP_R2, OP_I2: begin
+				case(alu_op)
+					ALU_SUB: begin result = sub; carry_flag = sub_ext[32]; ovf_flag = ovf_sub; end
+					ALU_SLT: result = lt_s ? 32'd1 : 32'd0;
+					ALU_SLTU: result = lt_u ? 32'd1 : 32'd0;
+					ALU_SRA: result = sra_out;
+					ALU_XNOR: result = ~(A ^ B);
+					ALU_MIN: result = lt_s ? A : B;
+					ALU_MINU: result = lt_u ? A : B;
+					ALU_MAX: result = lt_s ? B : A;
+					default: result = 32'b0;
+				endcase
+			end
 
-    case (opcode)
-        // ================= TIPO R: rd = rs1 (operacion) rs2 =================
-        `OP_R: begin
-            case (funct3)
-                3'b000: begin
-                    case (funct7)
-                        F7_BASE: result = add_ext[31:0];              // add
-                        F7_NEG:  result = sub_ext[31:0];              // sub
-                        F7_MUL:  result = mul_ss[31:0];               // mul
-                        default: ilegal = 1'b1;
-                    endcase
-                end
-                3'b001: begin
-                    case (funct7)
-                        F7_BASE: result = A << shamt;                 // sll
-                        F7_MUL:  result = mul_ss[63:32];              // mulh
-                        F7_ROT:  result = rota_izq;                   // rol
-                        default: ilegal = 1'b1;
-                    endcase
-                end
-                3'b010: begin
-                    case (funct7)
-                        F7_BASE: result = menor_s ? 32'd1 : 32'd0;    // slt
-                        F7_MUL:  result = mul_su[63:32];              // mulhsu
-                        default: ilegal = 1'b1;
-                    endcase
-                end
-                3'b011: begin
-                    case (funct7)
-                        F7_BASE: result = menor_u ? 32'd1 : 32'd0;    // sltu
-                        F7_MUL:  result = mul_uu[63:32];              // mulhu
-                        default: ilegal = 1'b1;
-                    endcase
-                end
-                3'b100: begin
-                    case (funct7)
-                        F7_BASE:   result = A ^ B;                    // xor
-                        F7_NEG:    result = ~(A ^ B);                 // xnor
-                        F7_MUL:    result = 32'd0;                    // div  (divisor_iterativo)
-                        F7_MINMAX: result = menor_s ? A : B;          // min
-                        F7_ZEXT: begin                                // zext.h (rs2 = x0)
-                            result = {16'b0, A[15:0]};
-                            if (rs2 != 5'd0) ilegal = 1'b1;
-                        end
-                        default: ilegal = 1'b1;
-                    endcase
-                end
-                3'b101: begin
-                    case (funct7)
-                        F7_BASE:   result = A >> shamt;               // srl
-                        F7_NEG:    result = $signed(A) >>> shamt;     // sra
-                        F7_MUL:    result = 32'd0;                    // divu (divisor_iterativo)
-                        F7_MINMAX: result = menor_u ? A : B;          // minu
-                        F7_ROT:    result = rota_der;                 // ror
-                        default: ilegal = 1'b1;
-                    endcase
-                end
-                3'b110: begin
-                    case (funct7)
-                        F7_BASE:   result = A | B;                    // or
-                        F7_NEG:    result = A | ~B;                   // orn
-                        F7_MUL:    result = 32'd0;                    // rem  (divisor_iterativo)
-                        F7_MINMAX: result = menor_s ? B : A;          // max
-                        default: ilegal = 1'b1;
-                    endcase
-                end
-                3'b111: begin
-                    case (funct7)
-                        F7_BASE:   result = A & B;                    // and
-                        F7_NEG:    result = A & ~B;                   // andn
-                        F7_MUL:    result = 32'd0;                    // remu (divisor_iterativo)
-                        F7_MINMAX: result = menor_u ? B : A;          // maxu
-                        default: ilegal = 1'b1;
-                    endcase
-                end
-                default: ilegal = 1'b1;
-            endcase
-        end
+			//---------------- tabla 3 ----------------
+			OP_R3: begin
+				case(alu_op)
+					ALU_DIVU: result = 32'b0;  //el cociente lo entrega el divisor
+					ALU_REMU: result = 32'b0;  //el resto lo entrega el divisor
+					ALU_CPOP: result = cpop_out;
+					ALU_ABS: result = A[31] ? (~A + 32'd1) : A;
+					ALU_SGT: result = ($signed(A) > $signed(B)) ? 32'd1 : 32'd0;
+					ALU_CLAMP: result = A[31] ? 32'd0 : (($signed(A) > $signed(B)) ? B : A);  //A limitado entre 0 y B
+					default: result = 32'b0;
+				endcase
+			end
 
-        // ================= TIPO I: rd = rs1 (operacion) inmediato =================
-        // En los corrimientos y en Zbb los 7 bits altos del inmediato hacen de funct7
-        // y los 5 bajos (el campo rs2) son la cantidad o dicen cual instruccion es.
-        `OP_IMM: begin
-            case (funct3)
-                3'b000: result = add_ext[31:0];                       // addi
-                3'b010: result = menor_s ? 32'd1 : 32'd0;             // slti
-                3'b011: result = menor_u ? 32'd1 : 32'd0;             // sltiu
-                3'b100: result = A ^ B;                               // xori
-                3'b110: result = A | B;                               // ori
-                3'b111: result = A & B;                               // andi
-                3'b001: begin
-                    case (funct7)
-                        F7_BASE: result = A << shamt;                 // slli
-                        F7_ROT: begin                                 // Zbb de un operando
-                            case (rs2)
-                                5'd0:    result = count_leading_zeros(A);    // clz
-                                5'd1:    result = count_trailing_zeros(A);   // ctz
-                                5'd2:    result = popcount(A);               // cpop
-                                5'd4:    result = {{24{A[7]}},  A[7:0]};     // sext.b
-                                5'd5:    result = {{16{A[15]}}, A[15:0]};    // sext.h
-                                default: ilegal = 1'b1;
-                            endcase
-                        end
-                        default: ilegal = 1'b1;
-                    endcase
-                end
-                3'b101: begin
-                    case (funct7)
-                        F7_BASE: result = A >> shamt;                 // srli
-                        F7_NEG:  result = $signed(A) >>> shamt;       // srai
-                        F7_ROT:  result = rota_der;                   // rori
-                        F7_REV8: begin                                // rev8 (inmediato 0x698)
-                            result = {A[7:0], A[15:8], A[23:16], A[31:24]};
-                            if (rs2 != 5'b11000) ilegal = 1'b1;
-                        end
-                        default: ilegal = 1'b1;
-                    endcase
-                end
-                default: ilegal = 1'b1;
-            endcase
-        end
+			//---------------- saltos condicionales: 1 si se cumple ----------------
+			OP_BRANCH: begin
+				case(alu_op)
+					ALU_BEQ: result = eq ? 32'd1 : 32'd0;
+					ALU_BNE: result = eq ? 32'd0 : 32'd1;
+					ALU_BLT: result = lt_s ? 32'd1 : 32'd0;
+					ALU_BGE: result = lt_s ? 32'd0 : 32'd1;
+					ALU_BLTU: result = lt_u ? 32'd1 : 32'd0;
+					ALU_BGEU: result = lt_u ? 32'd0 : 32'd1;
+					default: result = 32'b0;
+				endcase
+			end
 
-        // ================= PROPIAS DE LA CLASE (custom-0, formato R) =================
-        `OP_CUSTOM0: begin
-            case (funct3)
-                3'b000: result = ~A;                                  // nota  rd = ~rs1
-                3'b001: result = B;                                   // passb rd = rs2
-                3'b010: result = A << shamt;                          // sla   rd = rs1 << rs2
-                default: ilegal = 1'b1;
-            endcase
-            if (funct7 != F7_BASE) ilegal = 1'b1;
-        end
+			//---------------- direcciones: base + desplazamiento ----------------
+			OP_LOAD, OP_STORE, OP_JALR: begin
+				result = sum;
+			end
 
-        // ================= Xneura: PROPIAS DEL PROYECTO (custom-1, formato R) =================
-        `OP_CUSTOM1: begin
-            case (funct3)
-                3'b000: result = A[31] ? (~A + 1) : A;                             // x.abs   rd = |rs1|
-                3'b001: result = ($signed(A) > $signed(B)) ? 32'd1 : 32'd0;        // x.sgt   rd = rs1 > rs2
-                3'b010: result = A[31] ? 32'd0 : (($signed(A) > $signed(B)) ? B : A);   // x.clamp rd = limitar(rs1, 0, rs2)
-                default: ilegal = 1'b1;
-            endcase
-            if (funct7 != F7_BASE) ilegal = 1'b1;
-        end
+			//---------------- lui: pasa el valor de B tal cual ----------------
+			OP_LUI: begin
+				result = B;
+			end
 
-        // ================= SALTOS CONDICIONALES: resta y banderas =================
-        `OP_BRANCH: result = sub_ext[31:0];
+			default: result = 32'b0;
+		endcase
+	end
 
-        // ================= LUI: deja pasar el inmediato =================
-        `OP_LUI: result = B;
-
-        // cargas, almacenamientos, auipc, jal, jalr: suma (direccion)
-        default: result = add_ext[31:0];
-    endcase
-end
-
-// ============================================================
-// BANDERAS (las de la resta deciden los saltos condicionales)
-// ============================================================
-wire es_resta = (opcode == `OP_BRANCH) ||
-                ((opcode == `OP_R) && (funct3 == 3'b000) && (funct7 == F7_NEG));
-
-assign Z = (result == 32'b0);
-assign N = result[31];
-assign C = es_resta ? sub_ext[32] : add_ext[32];
-assign O = es_resta ? ovf_sub     : ovf_add;
-
+	// Banderas
+	assign Z = (result == 32'b0);
+	assign N = result[31];
+	assign C = carry_flag;
+	assign O = ovf_flag;
 endmodule

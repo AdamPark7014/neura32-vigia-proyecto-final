@@ -1,5 +1,4 @@
 `timescale 1ns / 1ps
-`include "neura32_defs.vh"
 // ============================================================
 // BANCO DE PRUEBAS DEL CARGADOR DE PROGRAMAS
 // Demuestra que el procesador corre otro programa sin volver a compilar:
@@ -18,11 +17,11 @@ module tb_cargador;
     wire [9:0]  leds;
     reg  [9:0]  sw = 10'd0;
     wire [23:0] hex;
-    wire        fin, instr_ilegal, desalineado;
+    wire        fin, instr_ilegal;
     wire        cam_siod;
     pullup (cam_siod);
 
-    soc_neura32 #(.USAR_ARCHIVO(0), .SIMULACION(1), .VID_ANCHO(160), .VID_ALTO(120), .BLOQUE_LOG2(1), .VGA_ESCALA_LOG2(2)) dut (
+    soc_neura32 #(.ARCHIVO_PROGRAMA("fpga/programa_demo.txt"), .SIMULACION(1), .VID_ANCHO(160), .VID_ALTO(120), .BLOQUE_LOG2(1), .VGA_ESCALA_LOG2(2)) dut (
         .clk(clk), .clk50(clk), .rst_ext(rst),
         .interruptores(sw), .botones(2'b11),
         .leds(leds), .hex(hex),
@@ -30,7 +29,7 @@ module tb_cargador;
         .cam_pclk(1'b0), .cam_href(1'b0), .cam_vsync(1'b0), .cam_d(8'd0),
         .cam_sioc(), .cam_siod(cam_siod), .cam_reset_n(), .cam_pwdn(), .cam_fase(),
         .vga_r(), .vga_g(), .vga_b(), .vga_hs(), .vga_vs(),
-        .fin(fin), .instr_ilegal(instr_ilegal), .desalineado(desalineado),
+        .fin(fin), .instr_ilegal(instr_ilegal),
         .ciclos(), .instret()
     );
 
@@ -70,12 +69,12 @@ module tb_cargador;
 
     initial begin
         $display("=== Cargador de programas: el procesador corre otro programa ===");
-        for (i = 0; i < 4096; i = i + 1) dut.rom.memoria[i] = `NOP;
+        for (i = 0; i < 4096; i = i + 1) dut.cpu.IMEM.rom_data[i] = 32'h00000013;
         // programa 1:  lui s0, 0xFFFF0 ; addi t0, x0, 0x155 ; sw t0, 0(s0) ; j .
-        dut.rom.memoria[0] = LUI(S0, 32'hFFFF0000);
-        dut.rom.memoria[1] = ADDI(T0, X0, 12'h155);
-        dut.rom.memoria[2] = SW(T0, S0, 0);
-        dut.rom.memoria[3] = JAL(X0, 0);
+        dut.cpu.IMEM.rom_data[0] = LUI(S0, 32'hFFFF0000);
+        dut.cpu.IMEM.rom_data[1] = ADDI(T0, X0, 12'h155);
+        dut.cpu.IMEM.rom_data[2] = SW(T0, S0, 0);
+        dut.cpu.IMEM.rom_data[3] = JAL(X0, 0);
         #200 rst = 1'b0;
         repeat (40) @(posedge clk);
         revisar(leds == 10'h155, "el primer programa corre: LED = 0x155");
@@ -93,7 +92,7 @@ module tb_cargador;
         repeat (8) @(posedge clk);
         serie_bien = 1'b1;
         for (i = 0; i < n; i = i + 1)
-            if (dut.rom.memoria[i] !== demo.memoria[i]) serie_bien = 1'b0;
+            if (dut.cpu.IMEM.rom_data[i] !== demo.memoria[i]) serie_bien = 1'b0;
         revisar(serie_bien, "las palabras del programa nuevo quedaron en la memoria");
         $display("        programa de demostracion: %0d instrucciones", n);
 

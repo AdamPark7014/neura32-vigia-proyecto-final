@@ -20,7 +20,7 @@
 
 // ---------------- perifericos (desplazamiento sobre s0) ----------------
 localparam PV_LEDS = 32'h00, PV_SW = 32'h04, PV_HEX = 32'h08, PV_KEY = 32'h0C;
-localparam PV_CONSOLA = 32'h14, PV_CONTROL = 32'h18, PV_PLATAFORMA = 32'h24;
+localparam PV_TICKS = 32'h10, PV_CONSOLA = 32'h14, PV_CONTROL = 32'h18, PV_PLATAFORMA = 32'h24;
 localparam PV_CAM_SAL = 32'h40, PV_CAM_ENT = 32'h44, PV_VIS_CTRL = 32'h48, PV_VIS_EST = 32'h4C;
 localparam PV_ZONA = 32'h54, PV_LINEA = 32'h58, PV_LETRERO = 32'h5C, PV_CAJA0 = 32'h60, PV_COLORES = 32'h80;
 
@@ -279,19 +279,19 @@ task programa_vigia;
         emitir(ADDI(T1, T1, 4));
         emitir(ADDI(T2, T2, -1));
         BNEZ(T2, L_cp);
-        emitir(CSRRS(S11, `CSR_CYCLE, X0));
+        emitir(LW  (S11, S0, PV_TICKS));
         emitir(ADDI(A0, S1, VR_RECORTE));
         emitir(ADDI(A1, X0, 0));
         CALL(L_red);
-        emitir(CSRRS(T0, `CSR_CYCLE, X0));
+        emitir(LW  (T0, S0, PV_TICKS));
         emitir(SUB (T0, T0, S11));
         emitir(SW  (T0, S1, VR_BENCH_X));
         emitir(SW  (A0, S1, VR_CLASE_PRUEBA));
-        emitir(CSRRS(S11, `CSR_CYCLE, X0));
+        emitir(LW  (S11, S0, PV_TICKS));
         emitir(ADDI(A0, S1, VR_RECORTE));
         emitir(ADDI(A1, X0, 1));
         CALL(L_red);
-        emitir(CSRRS(T0, `CSR_CYCLE, X0));
+        emitir(LW  (T0, S0, PV_TICKS));
         emitir(SUB (T0, T0, S11));
         emitir(SW  (T0, S1, VR_BENCH_R));
         emitir(SLLI(A0, A0, 8));                        // {clase RV32IM, clase Zbb}
@@ -324,7 +324,7 @@ task programa_vigia;
         emitir(LW  (T0, S0, PV_VIS_EST));
         emitir(ANDI(T0, T0, 1));
         BEQZ(T0, L_espera);
-        emitir(CSRRS(S11, `CSR_CYCLE, X0));
+        emitir(LW  (S11, S0, PV_TICKS));
         emitir(LW  (T0, S1, VR_CUADRO));
         emitir(ADDI(T0, T0, 1));
         emitir(SW  (T0, S1, VR_CUADRO));
@@ -439,7 +439,7 @@ task programa_vigia;
         L_cls_fin = pc_ens;
         CALL(L_seguimiento);
         CALL(L_dibujar);
-        emitir(CSRRS(T0, `CSR_CYCLE, X0));              // ciclos que tomo este cuadro
+        emitir(LW  (T0, S0, PV_TICKS));              // ciclos que tomo este cuadro
         emitir(SUB (T0, T0, S11));
         emitir(SW  (T0, S1, VR_CICLOS));
         emitir(LW  (T1, S1, VR_MAX_CICLOS));
@@ -1069,7 +1069,7 @@ task programa_vigia;
         emitir(SW  (A1, T1, 4));
         emitir(LW  (T2, S1, VR_CUADRO));
         emitir(SW  (T2, T1, 8));
-        emitir(CSRRS(T2, `CSR_CYCLE, X0));
+        emitir(LW  (T2, S0, PV_TICKS));
         emitir(SW  (T2, T1, 12));
         emitir(ADDI(T0, T0, 1));
         emitir(SW  (T0, S1, VR_EVENTOS));
