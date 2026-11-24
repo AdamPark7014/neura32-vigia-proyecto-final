@@ -1,7 +1,4 @@
 #!/bin/bash
-# Uso: bash simular.sh [banco ...]   (desde la carpeta del proyecto; sin argumentos corre todos)
-# Primero escribe los archivos de instrucciones en hexadecimal (fpga/programa_*.txt)
-# con el ensamblador en Verilog; despues corre cada banco de pruebas con Icarus.
 IV=/c/iverilog/bin
 HDL="hdl/pipo_register.v hdl/rom.v hdl/ram.v hdl/regfile.v hdl/decoder.v hdl/alu_riscv.v hdl/divider.v hdl/uc_simple.v hdl/riscv_neura.v hdl/perifericos.v hdl/jtag_loader.v hdl/vision/memoria_doble_puerto.v hdl/vision/ram_dp.v hdl/vision/ram_2clk.v hdl/vision/cam_capture.v hdl/vision/block_avg.v hdl/vision/fondo_mascara.v hdl/vision/vga_sincronia.v hdl/vision/vga_draw.v hdl/vision/pc_view.v hdl/vision/registros_vision.v hdl/vision/vision_vigia.v hdl/soc_neura32.v tb/sim_jtag.v"
 mkdir -p build tb/salidas
