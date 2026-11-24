@@ -1,16 +1,6 @@
 `timescale 1ns / 1ps
-// ============================================================
-// GENERADOR DE PROGRAMAS (ensamblador RISC-V escrito en Verilog)
-// No es hardware: arma la ROM con el codificador de
-// codificador_riscv.vh en dos pasadas (etiquetas y codigo).
-//   PROGRAMA = 1  clasificador neuronal 3x3 (programa_red_neuronal.vh)
-//   PROGRAMA = 2  prueba del repertorio      (programa_prueba_isa.vh)
-//   PROGRAMA = 3  NEURA-32 Vigia             (programa_vigia.vh)
-//   PROGRAMA = 4  demostracion: Fibonacci    (programa_demo.vh)
-// Los testbenches copian 'memoria' a la ROM del SoC; generar_hex.v la
-// guarda en un .hex que lee la ROM en Quartus ($readmemh), igual que la
-// ROM de la Practica 4 lee rom_data.txt.
-// ============================================================
+
+// generador
 module generador_programa #(
     parameter PROGRAMA = 3,
     parameter PALABRAS = 4096

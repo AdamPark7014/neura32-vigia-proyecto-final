@@ -1,31 +1,18 @@
 `timescale 1ns / 1ps
-// ============================================================
-// SISTEMA NEURA-32 VIGIA: el procesador (riscv_neura) con sus entradas
-// y salidas: LED, interruptores, displays, camara OV7670, vision y
-// monitor VGA, mas el cargador de programas por JTAG.
-//
-// MAPA DE MEMORIA
-//   0x0000_0000 - 0x0000_3FFF  memoria de programa (dentro del procesador)
-//   0x1000_0000 - 0x1000_3FFF  memoria de datos (dentro del procesador)
-//   0x2000_0000 - 0x2000_12BF  mascara de movimiento 80 x 60 (1 byte por celda, solo lectura)
-//   0xFFFF_0000 - 0xFFFF_003F  perifericos (LED, SW, HEX, KEY, contador de ciclos, consola)
-//   0xFFFF_0040 - 0xFFFF_009F  camara y vision (SCCB, captura, zona, linea, cajas)
-//
-// El procesador pone la direccion un ciclo antes (io_addr_pre) para la
-// mascara, que es una memoria sincrona; los registros se leen con io_addr.
-// ============================================================
+
+// SoC
 module soc_neura32 #(
-    parameter ARCHIVO_PROGRAMA = "programa_vigia.txt",   // instrucciones en hexadecimal
+    parameter ARCHIVO_PROGRAMA = "programa_vigia.txt",
     parameter SIMULACION       = 0,
-    // video: placa 320 x 240 (la camara ya lo entrega reducido) y deteccion 80 x 60
+    // video
     parameter VID_ANCHO        = 320,
     parameter VID_ALTO         = 240,
     parameter BLOQUE_LOG2      = 2,
     parameter VGA_ESCALA_LOG2  = 1
 ) (
-    input  wire        clk,          // 25 MHz
-    input  wire        clk50,        // 50 MHz: muestreo de la camara
-    input  wire        rst_ext,      // reinicio de la placa (activo en alto)
+    input  wire        clk,
+    input  wire        clk50,
+    input  wire        rst_ext,
 
     input  wire [9:0]  interruptores,
     input  wire [1:0]  botones,
@@ -45,7 +32,7 @@ module soc_neura32 #(
     inout  wire        cam_siod,
     output wire        cam_reset_n,
     output wire        cam_pwdn,
-    output wire [1:0]  cam_fase,     // fase de XCLK que pide el programa
+    output wire [1:0]  cam_fase,
 
     // VGA
     output wire [3:0]  vga_r,
@@ -54,13 +41,12 @@ module soc_neura32 #(
     output wire        vga_hs,
     output wire        vga_vs,
 
-    output wire        fin,          // el programa termino (ecall)
+    output wire        fin,
     output wire        instr_ilegal,
     output wire [31:0] ciclos,
     output wire [31:0] instret
 );
-    // ---------------- cargador de programas (JTAG) ----------------
-    // Mientras la PC escribe otro programa, todo el sistema queda en reinicio.
+    // cargador
     wire        cargar_we, detener;
     wire [11:0] cargar_dir;
     wire [31:0] cargar_dato;
@@ -71,9 +57,9 @@ module soc_neura32 #(
         .halt(detener), .leds(leds), .hex(hex)
     );
 
-    wire rst = rst_ext | detener;    // reinicio de los perifericos (activo en alto)
+    wire rst = rst_ext | detener;
 
-    // ---------------- procesador ----------------
+    // procesador
     wire [31:0] io_addr_pre, io_addr, io_wdata, io_rdata, resultado;
     wire        io_we, io_re;
 
@@ -86,12 +72,12 @@ module soc_neura32 #(
         .halted(fin), .illegal(instr_ilegal), .cycles(ciclos), .instrs(instret)
     );
 
-    // ---------------- decodificacion de direcciones ----------------
+    // direcciones
     wire sel_msk   = (io_addr[31:28] == 4'h2);
     wire sel_perif = (io_addr[31:16] == 16'hFFFF);
-    wire sel_vis   = sel_perif && (io_addr[7:6] != 2'b00);   // 0x40 en adelante
+    wire sel_vis   = sel_perif && (io_addr[7:6] != 2'b00);
 
-    // ---------------- perifericos basicos ----------------
+    // perifericos basicos
     wire [31:0] perif_dato, ticks, lfsr;
     perifericos #(.SIMULACION(SIMULACION)) perif (
         .clk(clk), .rst(rst),
@@ -103,7 +89,7 @@ module soc_neura32 #(
         .control(control), .ticks(ticks), .lfsr(lfsr)
     );
 
-    // ---------------- registros de camara y vision ----------------
+    // registros de camara y vision
     wire [31:0] vis_dato;
     wire        siod_bajo;
     wire        vis_habilita, vis_aprender, vis_ver_mascara, vis_ack, vis_listo, vis_banco;
@@ -134,10 +120,10 @@ module soc_neura32 #(
         .hud_personas(hud_personas), .hud_eventos(hud_eventos), .cajas(cajas), .colores(colores)
     );
 
-    // SIOD de drenador abierto: la FPGA solo lo pone en 0 o lo suelta (pull-up)
+    // drenador abierto
     assign cam_siod = siod_bajo ? 1'b0 : 1'bz;
 
-    // ---------------- tuberia de vision ----------------
+    // tuberia de vision
     wire [31:0] msk_dato;
 
     vision_vigia #(
@@ -155,7 +141,7 @@ module soc_neura32 #(
         .vga_r(vga_r), .vga_g(vga_g), .vga_b(vga_b), .vga_hs(vga_hs), .vga_vs(vga_vs)
     );
 
-    // ---------------- dato que lee el procesador ----------------
+    // lectura del procesador
     assign io_rdata = sel_msk   ? msk_dato   :
                       sel_vis   ? vis_dato   :
                       sel_perif ? perif_dato : 32'd0;

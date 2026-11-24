@@ -1,9 +1,6 @@
-"""Pasa ajustes_ov7670.txt (probado en vivo) a la tabla en Verilog tabla_ov7670.v.
-Uso (desde fpga/prueba_camara):  python generar_tabla.py
-"""
 import re
 
-renglones = []          # (registro, valor, comentario)
+renglones = []
 for linea in open("ajustes_ov7670.txt", encoding="utf-8"):
     codigo, _, nota = linea.partition("//")
     partes = codigo.split()
@@ -24,14 +21,7 @@ assert len(cuerpo) < 255, "la tabla no cabe en 8 bits de indice"
 
 with open("tabla_ov7670.v", "w", encoding="utf-8", newline="\n") as f:
     f.write("""`timescale 1ns / 1ps
-// ============================================================
-// TABLA DE CONFIGURACION DE LA OV7670 (prueba de la camara)
-// Cada renglon es {tipo, registro, valor}:
-//   tipo 0 = esperar "valor" milisegundos     tipo 1 = escribir el registro
-//   tipo 2 = leer el registro (PID / VER)     tipo 3 = fin de la tabla
-// Los valores se afinan en vivo desde la PC (camara_reg.tcl con
-// ajustes_ov7670.txt) y luego generar_tabla.py los anota aqui.
-// ============================================================
+// registros OV7670
 module tabla_ov7670 (
     input  wire [7:0]  indice,
     output reg  [17:0] comando
@@ -42,8 +32,7 @@ module tabla_ov7670 (
         case (indice)
 """)
     for i, (c, nota) in enumerate(cuerpo):
-        coment = f"   // {nota}" if nota else ""
-        f.write(f"            8'd{i}:".ljust(20) + f"comando = {{{c}}};{coment}\n")
+            f.write(f"            8'd{i}:".ljust(20) + f"comando = {{{c}}};\n")
     f.write("""            default: comando = {C_FIN, 16'd0};
         endcase
     end

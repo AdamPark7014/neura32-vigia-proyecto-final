@@ -1,17 +1,6 @@
 `timescale 1ns / 1ps
-// ============================================================
-// GENERA EL ARCHIVO DE INSTRUCCIONES DE UN PROGRAMA (no es hardware)
-// Arma el programa con el ensamblador en Verilog y lo escribe en un
-// archivo de texto en hexadecimal, una instruccion por renglon, igual
-// que programa_ab_c.txt de la clase pero con su comentario:
-//     00208233 // 0000: add x4, x1, x2
-// Ese archivo es el que lee la memoria de programa ($readmemh) y el que
-// se le puede cargar al procesador por JTAG.
-//   PROGRAMA = 1  red neuronal 3x3   -> fpga/programa_red.txt
-//   PROGRAMA = 2  prueba de todas las instrucciones -> fpga/programa_isa.txt
-//   PROGRAMA = 3  NEURA-32 Vigia     -> fpga/programa_vigia.txt (la que lee Quartus)
-//   PROGRAMA = 4  demostracion       -> fpga/programa_demo.txt
-// ============================================================
+
+// escribe la ROM
 module generar_rom #(
     parameter PROGRAMA = 3
 ) ();
@@ -26,7 +15,7 @@ module generar_rom #(
     integer f, i, fin_prog;
     reg [31:0] w;
 
-    // nombre de la operacion segun el opcode y el funct3
+    // mnemonico
     function [8*6-1:0] mnemonico;
         input [31:0] w;
         reg [2:0] f3;
@@ -57,7 +46,7 @@ module generar_rom #(
         end
     endfunction
 
-    // un renglon del archivo: la palabra y su comentario
+    // renglon
     task linea;
         input [31:0] dir;
         input [31:0] w;
@@ -106,8 +95,7 @@ module generar_rom #(
             4: begin f = $fopen("fpga/programa_demo.txt", "w");  fin_prog = gen.D_fin;  end
             default: begin f = $fopen("fpga/programa_vigia.txt", "w"); fin_prog = gen.T_sccb; end
         endcase
-        // la memoria completa (4096 palabras): despues de las instrucciones van las tablas
-        // y los pesos (se anotan como datos) y lo que sobra queda en nop
+        // memoria completa
         for (i = 0; i < 4096; i = i + 1) begin
             w = gen.memoria[i];
             if (i * 4 < fin_prog) linea(i * 4, w);

@@ -1,10 +1,4 @@
 `timescale 1ns / 1ps
-// ============================================================
-// BANCO DE PRUEBAS DE LA UNIDAD DE CONTROL (uc_simple)
-// Para cada tipo de instruccion revisa el recorrido de la maquina de
-// estados y las senales que se prenden en cada fase.
-// Al final imprime: PRUEBAS: n  ERRORES: 0
-// ============================================================
 module tb_uc_simple;
     reg clk = 1'b0, rst = 1'b0;
     always #5 clk = ~clk;
@@ -42,7 +36,7 @@ module tb_uc_simple;
         end
     endtask
 
-    task paso;                       // avanza un ciclo y deja ver las salidas del nuevo estado
+    task paso;
         begin
             @(posedge clk);
             #1;
@@ -52,52 +46,52 @@ module tb_uc_simple;
     initial begin
         $display("=== Unidad de control: recorrido por tipo de instruccion ===");
         repeat (2) @(posedge clk);
-        @(negedge clk);              // se suelta el reinicio lejos del flanco de subida
+        @(negedge clk);
         rst = 1'b1; #1;
         revisar(state == FETCH && pc_en && ir_en, "FETCH: avanza el PC y carga la instruccion");
 
-        // ---- tipo R (add) ----
+        // tipo R
         opcode = OP_R1; funct3 = 3'b000;
         paso; revisar(state == DECODE && !reg_write, "tipo R: DECODE");
         paso; revisar(state == EXEC_R && aluout_en && !alu_src && alu_op == 3'b000, "tipo R: EXEC_R con rs2, alu_op = funct3");
         paso; revisar(state == WRITEBACK && reg_write && result_src == 2'd0, "tipo R: WRITEBACK escribe el resultado de la ALU");
         paso; revisar(state == FETCH, "tipo R: regresa a FETCH (4 ciclos)");
 
-        // ---- tipo I (srli) ----
+        // tipo I
         opcode = OP_I1; funct3 = 3'b111;
         paso; paso; revisar(state == EXEC_R && alu_src && alu_op == 3'b111, "tipo I: EXEC_R con el inmediato");
         paso; paso;
 
-        // ---- carga ----
+        // carga
         opcode = OP_LOAD; funct3 = 3'b010;
         paso; paso; revisar(state == MEM_ADDR && alu_src && aluout_en && addr_phase, "carga: MEM_ADDR calcula la direccion");
         paso; revisar(state == MEM_READ && mem_read && mdr_en, "carga: MEM_READ guarda el dato leido");
         paso; revisar(state == WRITEBACK && reg_write && result_src == 2'd1, "carga: WRITEBACK escribe el dato de la memoria");
         paso;
 
-        // ---- almacenamiento ----
+        // almacenamiento
         opcode = OP_STORE;
         paso; paso; revisar(state == MEM_ADDR, "almacenamiento: MEM_ADDR");
         paso; revisar(state == MEM_WRITE && mem_write && !reg_write, "almacenamiento: MEM_WRITE escribe la memoria");
         paso; revisar(state == FETCH, "almacenamiento: regresa a FETCH sin write-back");
 
-        // ---- salto condicional que no se cumple ----
+        // salto no tomado
         opcode = OP_BRANCH; funct3 = 3'b000; take = 1'b0;
         paso; paso; revisar(state == EXEC_BR && !pc_en, "salto que no se cumple: el PC no cambia");
         paso; revisar(state == FETCH, "salto que no se cumple: 3 ciclos");
 
-        // ---- salto condicional que si se cumple ----
+        // salto tomado
         take = 1'b1;
         paso; paso; revisar(state == EXEC_BR && pc_en && pc_src == 2'd1 && !reg_write, "salto que se cumple: carga el destino");
         paso; revisar(state == JUMP_WAIT, "salto que se cumple: JUMP_WAIT lee la instruccion del destino");
         paso; take = 1'b0;
 
-        // ---- jal ----
+        // jal
         opcode = OP_JAL;
         paso; paso; revisar(state == EXEC_BR && pc_en && reg_write && result_src == 2'd2, "jal: salta y guarda la direccion de regreso");
         paso; paso;
 
-        // ---- division (divu): espera al divisor ----
+        // division
         opcode = OP_R3; funct3 = 3'b000; div_ready = 1'b0;
         paso; revisar(state == DECODE && div_start, "divu: arranca el divisor en DECODE");
         paso; revisar(state == EXEC_DIV && !aluout_en, "divu: EXEC_DIV espera");
@@ -107,18 +101,18 @@ module tb_uc_simple;
         paso; revisar(state == WRITEBACK && reg_write, "divu: WRITEBACK");
         paso; div_ready = 1'b0;
 
-        // ---- cpop: misma tabla OP_R3 pero de un ciclo ----
+        // cpop
         funct3 = 3'b010;
         paso; revisar(state == DECODE && !div_start, "cpop: no usa el divisor");
         paso; revisar(state == EXEC_R, "cpop: EXEC_R");
         paso; paso;
 
-        // ---- opcode que no existe ----
+        // opcode invalido
         opcode = 7'b0000000;
         paso; revisar(state == DECODE && illegal, "opcode que no existe: se marca");
         paso; revisar(state == FETCH && !reg_write && !mem_write, "opcode que no existe: no hace nada");
 
-        // ---- ecall ----
+        // ecall
         opcode = OP_SYSTEM;
         paso; paso; revisar(state == HALT && halted, "ecall: el procesador se detiene");
         paso; revisar(state == HALT && !pc_en, "ecall: se queda detenido");

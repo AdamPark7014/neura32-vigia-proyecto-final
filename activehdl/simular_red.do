@@ -1,17 +1,14 @@
-# Simula el clasificador neuronal 3x3 (tb_red_neuronal).
-# La consola debe terminar con "PRUEBAS: 481  ERRORES: 0".
 set PROY "C:/Users/adpoz/OneDrive/Documentos/Universidad/2026-Semestre-5/09-Lab-Arquitecturas-LA116/Entregas/Proyecto-Final-NEURA32"
 cd "$PROY"
 
 asim +access +r tb_red_neuronal
 
-# --- entrada / salida del sistema ---
 wave -radix hex      /tb_red_neuronal/sw
 wave -radix hex      /tb_red_neuronal/leds
 wave -radix hex      /tb_red_neuronal/hex
 wave                 /tb_red_neuronal/fin
 
-# --- el procesador, fase por fase ---
+# el procesador
 wave -radix unsigned /tb_red_neuronal/dut/cpu/state
 wave -radix hex      /tb_red_neuronal/dut/cpu/pc
 wave -radix hex      /tb_red_neuronal/dut/cpu/instr

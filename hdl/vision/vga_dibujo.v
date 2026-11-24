@@ -1,21 +1,9 @@
 `timescale 1ns / 1ps
-// ============================================================
-// COMPOSICION DE LA IMAGEN VGA
-// Capas, de abajo hacia arriba:
-//   1. video de la camara en gris (4 bits), ampliado 2^ESCALA_LOG2 veces
-//   2. silueta detectada en azul (si ver_mascara = 1)
-//   3. linea virtual (cian, punteada)
-//   4. zona prohibida (borde amarillo)
-//   5. hasta 8 recuadros que escribe el procesador:
-//        color 1 verde = persona, 2 rojo = intruso, 3 gris = no es persona
-//   6. letrero "INTRUSO" (parpadea) cuando hay alarma
-// Con patron = 1 (SW8) muestra barras de color: prueba el monitor sin camara.
-// La rejilla de la deteccion es de 80 x 60 celdas de 8 x 8 pixeles VGA.
-// Tuberia de 2 ciclos: direccion -> lectura de memorias -> color.
-// ============================================================
+
+// dibujo VGA
 module vga_dibujo #(
     parameter VID_ANCHO   = 320,
-    parameter ESCALA_LOG2 = 1          // 320x240 -> 640x480
+    parameter ESCALA_LOG2 = 1
 ) (
     input  wire        clk,
     input  wire        rst,
@@ -33,12 +21,12 @@ module vga_dibujo #(
     input  wire        msk_dato,
 
     input  wire        ver_mascara,
-    input  wire        patron,         // SW8: barras de color para probar el monitor sin camara
-    input  wire [31:0] zona,           // {y1, x1, y0, x0} en celdas
-    input  wire [8:0]  linea,          // {visible, x}
-    input  wire [1:0]  banner,         // {parpadeo, mostrar}
-    input  wire [255:0] cajas,         // 8 x {y1, x1, y0, x0}
-    input  wire [15:0] colores,        // 8 x 2 bits
+    input  wire        patron,
+    input  wire [31:0] zona,
+    input  wire [8:0]  linea,
+    input  wire [1:0]  banner,
+    input  wire [255:0] cajas,
+    input  wire [15:0] colores,
 
     output reg  [3:0]  vga_r,
     output reg  [3:0]  vga_g,
@@ -46,11 +34,11 @@ module vga_dibujo #(
     output reg         vga_hs,
     output reg         vga_vs
 );
-    // ---------------- ciclo 0: direcciones ----------------
+    // ciclo 0
     assign vid_dir = activo_in ? ((v >> ESCALA_LOG2) * VID_ANCHO + (h >> ESCALA_LOG2)) : 17'd0;
     assign msk_dir = activo_in ? ((v >> 3) * 80 + (h >> 3)) : 13'd0;
 
-    // ---------------- ciclo 1: llegan los datos ----------------
+    // ciclo 1
     reg [9:0] h1, v1;
     reg       hs1, vs1, act1;
     reg [5:0] cuadros_vga;
@@ -61,7 +49,7 @@ module vga_dibujo #(
         else if (cuadro_nuevo) cuadros_vga <= cuadros_vga + 6'd1;
     end
 
-    // borde de 2 pixeles de un rectangulo dado en celdas de 8 x 8
+    // borde del recuadro
     function borde;
         input [9:0] px, py;
         input [7:0] cx0, cy0, cx1, cy1;
@@ -76,9 +64,9 @@ module vga_dibujo #(
         end
     endfunction
 
-    // fuente de 8 x 8 para "INTRUSO" (bit 7 = columna izquierda)
+    // fuente de 8 x 8
     function [7:0] fuente;
-        input [2:0] letra;   // 0 I, 1 N, 2 T, 3 R, 4 U, 5 S, 6 O
+        input [2:0] letra;
         input [2:0] fila;
         begin
             case ({letra, fila})
@@ -101,8 +89,8 @@ module vga_dibujo #(
         end
     endfunction
 
-    // ---------------- capas ----------------
-    wire [9:0] tx = h1 - 10'd16;          // origen del letrero en (16, 16), letras de 32 x 32
+    // capas
+    wire [9:0] tx = h1 - 10'd16;
     wire [9:0] ty = v1 - 10'd16;
     wire       en_letrero = banner[0] && (h1 >= 16) && (tx < 10'd224) && (v1 >= 16) && (ty < 10'd32) &&
                             (!banner[1] || cuadros_vga[4]);
@@ -138,7 +126,7 @@ module vga_dibujo #(
             if (letra_on) begin r = 4'hF; g = 4'hF; b = 4'hF; end
             else          begin r = 4'hA; g = 4'h0; b = 4'h0; end
         end
-        if (patron) begin                                  // barras de color y escala de grises
+        if (patron) begin
             if (v1 < 10'd360) begin
                 r = h1[8] ? 4'hF : 4'h0; g = h1[7] ? 4'hF : 4'h0; b = h1[6] ? 4'hF : 4'h0;
             end else begin
@@ -149,7 +137,7 @@ module vga_dibujo #(
         if (!act1) begin r = 4'h0; g = 4'h0; b = 4'h0; end
     end
 
-    // ---------------- ciclo 2: salidas registradas ----------------
+    // ciclo 2
     always @(posedge clk) begin
         vga_r <= r; vga_g <= g; vga_b <= b;
         vga_hs <= hs1; vga_vs <= vs1;

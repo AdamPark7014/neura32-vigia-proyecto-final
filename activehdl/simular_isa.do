@@ -1,5 +1,3 @@
-# Simula la prueba de todas las instrucciones (tb_prueba_isa).
-# La consola debe terminar con "PRUEBAS: 64  ERRORES: 0".
 set PROY "C:/Users/adpoz/OneDrive/Documentos/Universidad/2026-Semestre-5/09-Lab-Arquitecturas-LA116/Entregas/Proyecto-Final-NEURA32"
 cd "$PROY"
 

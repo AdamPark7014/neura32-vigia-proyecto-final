@@ -1,19 +1,17 @@
-//Divisor sin signo de 32 bits, un bit del cociente por ciclo (32 ciclos)
-//La division no cabe en un ciclo como la suma: la unidad de control espera en el estado
-//EXEC_DIV hasta que ready vale 1. Si b es 0 el cociente sale en unos y el resto es a.
+// divisor
 module divider (
 	input clk, rst,
 	input start,
 	input [31:0] a, b,
-	output reg [31:0] q,   //cociente
-	output reg [31:0] r,   //resto
+	output reg [31:0] q,
+	output reg [31:0] r,
 	output reg ready
 );
 
 	reg [31:0] divisor;
 	reg [5:0] count;
 	reg busy;
-	//resto parcial con un bit mas para la resta de prueba
+	// resta de prueba
 	wire [32:0] trial = {r[30:0], q[31]} - {1'b0, divisor};
 
 	always @(posedge clk or negedge rst)
@@ -40,7 +38,7 @@ module divider (
 			begin
 				if(busy)
 				begin
-					//se baja un bit del dividendo; si el divisor cabe, se resta y el bit del cociente es 1
+					// bit del cociente
 					if(!trial[32])
 					begin
 						r <= trial[31:0];

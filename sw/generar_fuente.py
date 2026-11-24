@@ -1,9 +1,3 @@
-"""Genera la fuente de letras 8 x 16 del monitor (hdl/vision/font8x16.txt).
-64 caracteres (codigos ASCII 32 a 95: espacio, signos, numeros y mayusculas),
-16 renglones por caracter, un byte por renglon (bit 7 = columna izquierda).
-La ROM se direcciona con {caracter - 32, renglon}.
-Uso (desde la carpeta del proyecto):  python sw/generar_fuente.py
-"""
 from PIL import Image, ImageDraw, ImageFont
 
 letra = None

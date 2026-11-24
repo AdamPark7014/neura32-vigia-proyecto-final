@@ -1,5 +1,4 @@
 `timescale 1ns / 1ps
-// Prueba rapida del maestro SCCB contra el modelo de la camara
 module tb_sccb;
     reg clk = 0, rst = 1;
     always #20 clk = ~clk;
@@ -25,7 +24,7 @@ module tb_sccb;
                  camara.regs[8'h40], camara.escrituras, camara.lecturas);
         if (pid == 8'h76 && ver == 8'h73 && camara.regs[8'h11] == 8'h01 && camara.regs[8'h3A] == 8'h04)
             $display("SCCB OK"); else $display("SCCB FALLA");
-        // ordenes de fuera: escribir 0x55 = 0x3C y leerlo de vuelta
+        // ordenes externas
         @(posedge clk); ext_reg = 8'h55; ext_val = 8'h3C; ext_wr = 1; @(posedge clk); ext_wr = 0;
         @(posedge clk); wait (ext_libre); @(posedge clk);
         ext_rd = 1; @(posedge clk); ext_rd = 0; @(posedge clk); wait (ext_libre); @(posedge clk);

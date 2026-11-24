@@ -1,6 +1,4 @@
-//Banco de 32 registros (el de la clase)
-//x0 siempre vale 0. Los parametros dejan valores iniciales en x1, x2 y x3 para el programa
-//de la clase (a, b, c); en el proyecto se quedan en 0.
+// banco de registros
 module regfile #(
 	parameter A_INIT = 32'd0,
 	parameter B_INIT = 32'd0,
@@ -18,14 +16,15 @@ module regfile #(
 
 	initial begin
 		for (i=0;i<32;i=i+1) regs[i] = 32'b0;
-			regs[1] = A_INIT;  // x1 = a
-			regs[2] = B_INIT;  // x2 = b
-			regs[3] = C_INIT;  // x3 = c
+			regs[1] = A_INIT;
+			regs[2] = B_INIT;
+			regs[3] = C_INIT;
 	end
 
 	assign rdata1 = (rs1==0) ? 32'b0 : regs[rs1];
 	assign rdata2 = (rs2==0) ? 32'b0 : regs[rs2];
 
+	// escritura
 	always @(posedge clk)
 		if (we && rd!=0) regs[rd] <= wdata;
 

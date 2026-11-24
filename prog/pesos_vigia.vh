@@ -1,22 +1,11 @@
-// ============================================================
-// RED BINARIA DE NEURA-32 VIGIA 512 -> 64 -> 3 (generado por sw/entrenar_vigia.py)
-// Capa oculta: pesos de 1 bit (XNOR + POPCOUNT) y umbral entero por neurona.
-// Capa de salida: pesos de 8 bits con signo. No editar a mano.
-// Exactitud con enteros sobre 1800 siluetas de prueba: 91.6%
-// Matriz de confusion (persona / objeto o animal / ruido):
-//   [573, 13, 14]
-//   [19, 524, 57]
-//   [8, 40, 552]
-// Personas reconocidas por tipo: cuerpo completo 92.8%, medio cuerpo 96.0%, busto 95.8%
-// ============================================================
 localparam VIG_ENTRADAS = 512, VIG_OCULTAS = 64, VIG_SALIDAS = 3;
-reg        [31:0] VIG_W1 [0:1023];      // neurona j, palabra w -> VIG_W1[16*j + w]
-reg        [31:0] VIG_T1 [0:63];        // a_j = POPCOUNT(XNOR) >= VIG_T1[j]
-reg signed [7:0]  VIG_W2 [0:191];       // VIG_W2[64*k + j]
+reg        [31:0] VIG_W1 [0:1023];
+reg        [31:0] VIG_T1 [0:63];
+reg signed [7:0]  VIG_W2 [0:191];
 reg signed [31:0] VIG_B2 [0:2];
-reg        [31:0] VIG_PRUEBA [0:47];    // 3 siluetas de prueba: cuerpo completo, medio cuerpo y busto
-localparam VIG_PRUEBA_CLASE = 0;      // clase de la primera (0 = persona)
-localparam VIG_PRUEBA_PERSONAS = 3;   // cuantas de las 3 salen como persona
+reg        [31:0] VIG_PRUEBA [0:47];
+localparam VIG_PRUEBA_CLASE = 0;
+localparam VIG_PRUEBA_PERSONAS = 3;
 
 task cargar_pesos_vigia;
     begin

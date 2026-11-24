@@ -1,24 +1,3 @@
-<#
-.SYNOPSIS
-  Compila NEURA-32 Vigia para la DE10-Lite con Quartus Prime 24.1 Lite y resume recursos y tiempos.
-
-.DESCRIPTION
-  Corre el flujo completo (sintesis, ajuste, ensamblado y analisis de tiempos) del proyecto vigia.qpf
-  y deja en RESUMEN.txt los elementos logicos, registros, bits de memoria, multiplicadores, pines y la
-  frecuencia maxima del reloj de 25 MHz. La memoria de programa se llena con programa_vigia.txt (una
-  instruccion en hexadecimal por renglon, como programa_ab_c.txt de la clase), que escribe
-  tb/generar_rom.v al correr simular.ps1.
-
-  quartus.ini (skip_ipcatalog_init=on) evita que Quartus abra el catalogo de IP, que el Control
-  inteligente de aplicaciones de Windows bloquea.
-
-.PARAMETER Grabar
-  Despues de compilar, programa la DE10-Lite por USB-Blaster (volatil: se pierde al apagar la placa).
-
-.EXAMPLE
-  pwsh -File compilar.ps1
-  pwsh -File compilar.ps1 -Grabar
-#>
 [CmdletBinding()]
 param([switch]$Grabar)
 
@@ -30,7 +9,7 @@ if (-not (Test-Path "$raiz\programa_vigia.txt")) { throw "Falta programa_vigia.t
 
 Push-Location $raiz
 try {
-    Copy-Item ..\hdl\vision\font8x16.txt font8x16.txt -Force     # la fuente de letras del monitor
+    Copy-Item ..\hdl\vision\font8x16.txt font8x16.txt -Force
     Write-Host 'Compilando (tarda unos minutos)...' -ForegroundColor Cyan
     & "$quartus\quartus_sh.exe" --flow compile vigia -c vigia *> compilar.log
     $ok = Select-String -Path compilar.log -Pattern 'Quartus Prime Full Compilation was successful' -Quiet
@@ -39,7 +18,7 @@ try {
         throw 'La compilacion fallo; detalle en compilar.log.'
     }
 
-    # ---- resumen de recursos (reporte del Fitter) ----
+    # resumen de recursos
     $fit = Get-Content 'output_files\vigia.fit.summary'
     $sta = Get-Content 'output_files\vigia.sta.rpt'
     $fmax = $sta | Select-String -Pattern '^\;\s*([\d\.]+) MHz\s*\;\s*([\d\.]+) MHz\s*\;\s*CLK25' | Select-Object -First 1

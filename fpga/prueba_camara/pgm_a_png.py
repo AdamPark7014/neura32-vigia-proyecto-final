@@ -1,6 +1,3 @@
-"""Convierte la captura de la camara (PGM 320x240, 16 grises) a PNG ampliado x2.
-Uso: python pgm_a_png.py captura.pgm [captura.png]
-"""
 import sys
 from PIL import Image
 

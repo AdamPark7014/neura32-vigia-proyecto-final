@@ -1,6 +1,3 @@
-# El programa de la clase, (a + b) * c, en el procesador final (tb_programa_ab_c).
-# Se ve cada fase de la maquina de estados: FETCH, DECODE, EXEC_R, WRITEBACK.
-# La consola debe terminar con "PRUEBAS: 3  ERRORES: 0".
 set PROY "C:/Users/adpoz/OneDrive/Documentos/Universidad/2026-Semestre-5/09-Lab-Arquitecturas-LA116/Entregas/Proyecto-Final-NEURA32"
 cd "$PROY"
 

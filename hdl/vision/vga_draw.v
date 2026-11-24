@@ -1,49 +1,35 @@
-//Composicion de la imagen del monitor VGA (640 x 480)
-//Capas, de abajo hacia arriba:
-//  1. video de la camara a color: brillo de 6 bits (320 x 240) y color U, V de 5 bits
-//     (160 x 120); se convierte a RGB con sumas y corrimientos y se trama (2 x 2) para
-//     el DAC de 4 bits de la DE10-Lite
-//  2. silueta: contorno de la mascara de movimiento dentro de cada recuadro de persona
-//     (con show_mask se pinta toda la mascara en azul y su contorno en cian)
-//  3. linea virtual (cian, punteada) y zona prohibida (borde amarillo)
-//  4. hasta 8 recuadros que escribe el procesador, cada uno con su letrero:
-//       color 1 verde "PERSONA", 2 rojo "INTRUSO", 3 gris "OBJETO"
-//  5. letrero grande "INTRUSO" (parpadea) cuando hay alarma
-//  6. barra de estado: nombre, personas a la vista, eventos y "REC"
-//Con pattern = 1 (SW8) muestra barras de color: prueba el monitor sin camara.
-//La rejilla de la deteccion es de 80 x 60 celdas de 8 x 8 pixeles del monitor.
-//Tuberia de 3 ciclos: direccion -> memorias y geometria -> color -> salida.
+// dibujo VGA
 module vga_draw #(
-	parameter width = 320,     //ancho del video guardado
-	parameter scale = 1        //2^scale pixeles del monitor por pixel de video
+	parameter width = 320,
+	parameter scale = 1
 )(
-	input clk,   //25 MHz
-	input rst,   //activo en bajo
-	//barrido (vga_sincronia)
+	input clk,
+	input rst,
+	// barrido
 	input [9:0] h,
 	input [9:0] v,
 	input hs_in,
 	input vs_in,
 	input active_in,
 	input frame_tick,
-	//memorias de video y de la mascara
+	// memorias de video
 	output wire [16:0] y_addr,
 	input [5:0] y_data,
 	output wire [14:0] uv_addr,
-	input [9:0] uv_data,   //{U[4:0], V[4:0]}
+	input [9:0] uv_data,
 	output wire [12:0] msk_addr,
 	input msk_data,
-	//lo que manda dibujar el procesador
+	// ordenes del procesador
 	input show_mask,
 	input pattern,
-	input [31:0] zone,      //{y1, x1, y0, x0} en celdas
-	input [8:0] line,       //{visible, x}
-	input [1:0] banner,     //{parpadeo, mostrar}
-	input [255:0] boxes,    //8 x {y1, x1, y0, x0}
-	input [15:0] colors,    //8 x 2 bits
-	input [3:0] hud_persons,   //personas a la vista (un digito)
-	input [7:0] hud_events,    //eventos (dos digitos BCD)
-	//salida al monitor
+	input [31:0] zone,
+	input [8:0] line,
+	input [1:0] banner,
+	input [255:0] boxes,
+	input [15:0] colors,
+	input [3:0] hud_persons,
+	input [7:0] hud_events,
+	// salida al monitor
 	output reg [3:0] vga_r,
 	output reg [3:0] vga_g,
 	output reg [3:0] vga_b,
@@ -51,16 +37,13 @@ module vga_draw #(
 	output reg vga_vs
 );
 
-	//================ ciclo 0: direcciones de las memorias de video ================
+	// ciclo 0
 	wire [9:0] vx = h >> scale;
 	wire [9:0] vy = v >> scale;
 	assign y_addr = active_in ? (vy * width + vx) : 17'd0;
 	assign uv_addr = active_in ? ((vy >> 1) * (width / 2) + (vx >> 1)) : 15'd0;
 
-	//================ mascara: tres renglones de celdas en registros ================
-	//La memoria de la mascara se lee en el borrado horizontal (80 celdas por renglon):
-	//row_cur es el renglon de celdas que se esta pintando, row_up el de arriba y row_dn
-	//el de abajo. Con los tres se sabe donde esta el borde de la silueta.
+	// tres renglones
 	reg [79:0] row_up, row_cur, row_dn;
 	reg [9:0] h1, v1;
 	reg hs1, vs1, act1;
@@ -72,7 +55,7 @@ module vga_draw #(
 	assign msk_addr = load_row * 13'd80 + {6'd0, load_i[6:0]};
 
 	wire load_now1 = (((v1 < 10'd480) && (v1[2:0] == 3'd3)) || (v1 == 10'd520)) &&
-	                 (h1 >= 10'd648) && (h1 < 10'd728);   //el dato llega un ciclo despues de su direccion
+	                 (h1 >= 10'd648) && (h1 < 10'd728);
 	wire [6:0] load_row1 = (v1 == 10'd520) ? 7'd0 : ({1'b0, v1[8:3]} + 7'd1);
 	wire shift_rows = (h1 == 10'd760) && (((v1 < 10'd480) && (v1[2:0] == 3'd7)) || (v1 == 10'd522));
 
@@ -80,7 +63,6 @@ module vga_draw #(
 	begin
 		if(load_now1)
 		begin
-			//llega la celda 0 primero: despues de 80 corrimientos queda en el bit 0
 			row_dn <= {(load_row1 < 7'd60) ? msk_data : 1'b0, row_dn[79:1]};
 		end
 		if(shift_rows)
@@ -90,7 +72,7 @@ module vga_draw #(
 		end
 	end
 
-	//================ ciclo 1: geometria de las capas ================
+	// ciclo 1
 	reg [5:0] frames;
 
 	always @(posedge clk or negedge rst)
@@ -116,7 +98,7 @@ module vga_draw #(
 		act1 <= active_in;
 	end
 
-	//---- celda de la mascara y sus vecinas ----
+	// celda y vecinas
 	wire [6:0] cx = h1[9:3];
 	wire m_c = row_cur[cx];
 	wire m_l = (cx == 7'd0) ? 1'b0 : row_cur[cx - 7'd1];
@@ -126,7 +108,7 @@ module vga_draw #(
 	wire edge_c = m_c & (((h1[2:0] < 3'd2) & ~m_l) | ((h1[2:0] >= 3'd6) & ~m_r) |
 	                     ((v1[2:0] < 3'd2) & ~m_u) | ((v1[2:0] >= 3'd6) & ~m_d));
 
-	//---- recuadros: borde de 2 pixeles de un rectangulo dado en celdas de 8 x 8 ----
+	// recuadros
 	function inside;
 		input [9:0] px, py;
 		input [7:0] cx0, cy0, cx1, cy1;
@@ -155,13 +137,12 @@ module vga_draw #(
 		end
 	endfunction
 
-	//---- letrero de cada recuadro: 7 letras de 8 x 16 arriba del recuadro ----
-	//(si el recuadro esta pegado arriba, el letrero va por dentro)
-	reg [1:0] box_color;      //color del borde que cae en este pixel
-	reg [1:0] in_color;       //color del recuadro de persona que contiene este pixel
+	// letrero
+	reg [1:0] box_color;
+	reg [1:0] in_color;
 	reg lbl_hit;
 	reg [1:0] lbl_color;
-	reg [2:0] lbl_char;       //0..6
+	reg [2:0] lbl_char;
 	reg [3:0] lbl_row;
 	reg [2:0] lbl_col;
 	reg [10:0] bx0, by0, ltop, dx, dy;
@@ -207,7 +188,7 @@ module vga_draw #(
 		end
 	end
 
-	//letra del letrero segun el color (codigo ASCII - 32)
+	// letra del letrero
 	function [5:0] label_text;
 		input [1:0] color;
 		input [2:0] i;
@@ -239,13 +220,13 @@ module vga_draw #(
 		end
 	endfunction
 
-	//---- letrero grande "INTRUSO": letras de 32 x 64 (la fuente ampliada 4 veces) ----
+	// letrero grande
 	wire [9:0] tx = h1 - 10'd208;
 	wire [9:0] ty = v1 - 10'd32;
 	wire ban_hit = banner[0] && (h1 >= 10'd208) && (tx < 10'd224) && (v1 >= 10'd32) && (ty < 10'd64) &&
 	               (!banner[1] || frames[4]);
 
-	//---- barra de estado: renglon de texto de 80 letras arriba de la imagen ----
+	// barra de estado
 	function [5:0] hud_text;
 		input [6:0] col;
 		input [3:0] persons;
@@ -274,7 +255,7 @@ module vga_draw #(
 	wire hud_hit = (v1 < 10'd16);
 	wire hud_dot = hud_hit && (h1 >= 10'd578) && (h1 < 10'd586) && (v1 >= 10'd4) && (v1 < 10'd12) && frames[5];
 
-	//---- una sola ROM de letras: la usa la barra, el letrero grande o el del recuadro ----
+	// ROM de letras
 	reg [5:0] ch;
 	reg [3:0] ch_row;
 	reg [2:0] ch_col;
@@ -302,7 +283,7 @@ module vga_draw #(
 		end
 	end
 
-	//ROM de la fuente (8 x 16, 64 caracteres): lectura sincrona, como la ROM de la clase
+	// ROM de letras
 	(* ramstyle = "M9K" *) reg [7:0] font_data [0:1023];
 	reg [7:0] font_q;
 	initial begin
@@ -312,11 +293,11 @@ module vga_draw #(
 		font_q <= font_data[{ch, ch_row}];
 	end
 
-	//---- zona y linea ----
+	// zona y linea
 	wire in_zone = border(h1, v1, zone[7:0], zone[15:8], zone[23:16], zone[31:24]);
 	wire in_line = line[8] && (h1[9:1] == {line[6:0], 2'b10}) && !v1[3];
 
-	//================ ciclo 2: color ================
+	// ciclo 2
 	reg [5:0] y2;
 	reg [9:0] uv2;
 	reg [9:0] h2, v2;
@@ -348,10 +329,7 @@ module vga_draw #(
 		col2 <= ch_col;
 	end
 
-	//---- YUV a RGB con sumas y corrimientos ----
-	//  R = Y + 1.402 (V - 128)                  1.402 ~ 1 + 1/4 + 1/8 + 1/32
-	//  G = Y - 0.344 (U - 128) - 0.714 (V - 128)  0.344 ~ 1/4 + 1/16 + 1/32,  0.714 ~ 1/2 + 1/8 + 1/16 + 1/32
-	//  B = Y + 1.772 (U - 128)                  1.772 ~ 1 + 1/2 + 1/4 + 1/64
+	// YUV a RGB
 	wire signed [10:0] yy = {3'b000, y2, 2'b10};
 	wire signed [10:0] du = $signed({3'b000, uv2[9:5], 3'b100}) - 11'sd128;
 	wire signed [10:0] dv = $signed({3'b000, uv2[4:0], 3'b100}) - 11'sd128;
@@ -361,7 +339,7 @@ module vga_draw #(
 	                               - ((dv >>> 1) + (dv >>> 3) + (dv >>> 4) + (dv >>> 5));
 	wire signed [10:0] b_full = yy + du + (du >>> 1) + (du >>> 2) + (du >>> 6);
 
-	//recorte a 0..255
+	// recorte 0-255
 	function [7:0] clip8;
 		input signed [10:0] x;
 		begin
@@ -374,7 +352,7 @@ module vga_draw #(
 		end
 	endfunction
 
-	//tramado 2 x 2: de 8 a 4 bits segun la posicion del pixel en el monitor
+	// tramado
 	reg [3:0] thr;
 	always @(*)
 	begin
@@ -402,7 +380,7 @@ module vga_draw #(
 
 	wire font_on = font_q[3'd7 - col2];
 
-	//color de un recuadro o letrero: 1 verde, 2 rojo, 3 gris
+	// color del recuadro
 	function [11:0] box_rgb;
 		input [1:0] c;
 		begin
@@ -419,7 +397,7 @@ module vga_draw #(
 	always @(*)
 	begin
 		r = vid_r; g = vid_g; b = vid_b;
-		//mascara completa (SW3): azul y contorno cian
+		// mascara
 		if(show_mask && m2)
 		begin
 			r = vid_r >> 1; g = vid_g >> 1; b = 4'hF;
@@ -428,7 +406,7 @@ module vga_draw #(
 		begin
 			r = 4'h0; g = 4'hF; b = 4'hF;
 		end
-		//silueta de cada persona: contorno del color de su recuadro
+		// silueta
 		if(edge2 && (in2 != 2'd0))
 		begin
 			{r, g, b} = box_rgb(in2);
@@ -439,26 +417,26 @@ module vga_draw #(
 		begin
 			{r, g, b} = box_rgb(box2);
 		end
-		//letrero del recuadro: barra del color del recuadro con letras negras
+		// letrero
 		if(lbl2)
 		begin
 			if(font_on) begin r = 4'h0; g = 4'h0; b = 4'h0; end
 			else begin {r, g, b} = box_rgb(lblc2); end
 		end
-		//letrero grande de alarma: letras blancas sobre rojo
+		// alarma
 		if(ban2)
 		begin
 			if(font_on) begin r = 4'hF; g = 4'hF; b = 4'hF; end
 			else begin r = 4'hB; g = 4'h0; b = 4'h0; end
 		end
-		//barra de estado: letras claras sobre el video oscurecido
+		// barra de estado
 		if(hud2)
 		begin
 			if(font_on) begin r = 4'hF; g = 4'hF; b = 4'hF; end
 			else begin r = vid_r >> 2; g = vid_g >> 2; b = vid_b >> 2; end
 			if(dot2) begin r = 4'hF; g = 4'h1; b = 4'h1; end
 		end
-		//barras de color y escala de grises (prueba del monitor)
+		// patron de prueba
 		if(pattern)
 		begin
 			if(v2 < 10'd360)
@@ -476,7 +454,7 @@ module vga_draw #(
 		if(!act2) begin r = 4'h0; g = 4'h0; b = 4'h0; end
 	end
 
-	//================ ciclo 3: salidas registradas ================
+	// ciclo 3
 	always @(posedge clk)
 	begin
 		vga_r <= r;

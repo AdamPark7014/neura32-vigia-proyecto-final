@@ -1,13 +1,3 @@
-# Baja por JTAG el video y los datos de NEURA-32 Vigia (modulo pc_view, instancia 0 del JTAG
-# virtual) y los escribe en la salida estandar; los lee ver_vigia.py.
-# Uso (desde la carpeta fpga):  quartus_stp -t flujo_vigia.tcl [campos] [cada]
-#   campos  cuantos campos mandar (0 = sin fin)
-#   cada    cada cuantos campos se bajan tambien la mascara y los datos de recuadros
-# Salida, renglon por renglon:
-#   CAMPO <ms>      y en el siguiente renglon el campo en hexadecimal (57 616 bits)
-#   MASCARA         y en el siguiente renglon la mascara (4 800 bits)
-#   DATOS           y en el siguiente renglon los datos (384 bits)
-# En cada cadena hexadecimal el ultimo digito trae el primer bit que salio.
 set campos 0
 set cada   2
 if {[llength $argv] > 0} { set campos [lindex $argv 0] }

@@ -1,9 +1,3 @@
-# Lee la sonda JTAG de la prueba de camara y la explica.
-# Uso (desde fpga/prueba_camara):
-#   quartus_stp -t leer_camara.tcl                 solo leer
-#   quartus_stp -t leer_camara.tcl fase 2          poner la fase de XCLK (0..3 = 0, 90, 180, 270 grados)
-#   quartus_stp -t leer_camara.tcl fase 2 reiniciar   ademas reinicia y vuelve a configurar la camara
-#   quartus_stp -t leer_camara.tcl barrer          prueba las 4 fases y dice cuantas lineas salen mal
 set hw  [lindex [get_hardware_names] 0]
 set dev [lindex [get_device_names -hardware_name $hw] 0]
 start_insystem_source_probe -device_name $dev -hardware_name $hw
@@ -21,7 +15,6 @@ proc leer {{callado 0}} {
     return $v
 }
 
-# la fuente son 3 bits: {fase[1:0], reinicio}
 set fase 2
 set i [lsearch $argv fase]
 if {$i >= 0} { set fase [lindex $argv [expr {$i + 1}]] }

@@ -1,10 +1,7 @@
-# Compila NEURA-32 Vigia en Active-HDL (Verilog-2005; hdl/ y prog/ para los .vh).
-# Se llama desde agregar_diseno.do; tambien sirve solo para recompilar.
-
 set PROY "C:/Users/adpoz/OneDrive/Documentos/Universidad/2026-Semestre-5/09-Lab-Arquitecturas-LA116/Entregas/Proyecto-Final-NEURA32"
 set INC "+incdir+$PROY/hdl+$PROY/prog"
 
-# --- el procesador ---
+# el procesador
 alog -v2k5 $INC "$PROY/hdl/pipo_register.v"
 alog -v2k5 $INC "$PROY/hdl/rom.v"
 alog -v2k5 $INC "$PROY/hdl/ram.v"
@@ -14,7 +11,7 @@ alog -v2k5 $INC "$PROY/hdl/alu_riscv.v"
 alog -v2k5 $INC "$PROY/hdl/divider.v"
 alog -v2k5 $INC "$PROY/hdl/uc_simple.v"
 alog -v2k5 $INC "$PROY/hdl/riscv_neura.v"
-# --- perifericos, cargador, vision y sistema completo ---
+# perifericos
 alog -v2k5 $INC "$PROY/hdl/perifericos.v"
 alog -v2k5 $INC "$PROY/tb/sim_jtag.v"
 alog -v2k5 $INC "$PROY/hdl/jtag_loader.v"
@@ -30,7 +27,7 @@ alog -v2k5 $INC "$PROY/hdl/vision/pc_view.v"
 alog -v2k5 $INC "$PROY/hdl/vision/registros_vision.v"
 alog -v2k5 $INC "$PROY/hdl/vision/vision_vigia.v"
 alog -v2k5 $INC "$PROY/hdl/soc_neura32.v"
-# --- programas, modelos y bancos de prueba ---
+# programas
 alog -v2k5 $INC "$PROY/prog/generador_programa.v"
 alog -v2k5 $INC "$PROY/tb/modelo_ov7670.v"
 alog -v2k5 $INC "$PROY/tb/generar_rom.v"

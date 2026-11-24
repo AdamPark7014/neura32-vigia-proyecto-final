@@ -1,6 +1,3 @@
-# Captura de pantalla de la ventana de Active-HDL (resolucion nativa) a PNG.
-# Usa PrintWindow, asi sale la ventana completa aunque otra la tape.
-# Uso: pwsh -File capturar.ps1 -Nombre 01-panorama
 param(
     [Parameter(Mandatory)] [string] $Nombre,
     [string] $Carpeta = (Join-Path $PSScriptRoot '..\docs\img')
@@ -26,12 +23,10 @@ $w = $r.Right - $r.Left; $hgt = $r.Bottom - $r.Top
 $bmp = New-Object System.Drawing.Bitmap $w, $hgt
 $g = [System.Drawing.Graphics]::FromImage($bmp)
 $hdc = $g.GetHdc()
-[Cap.W]::PrintWindow($h, $hdc, 2) | Out-Null      # 2 = PW_RENDERFULLCONTENT
+[Cap.W]::PrintWindow($h, $hdc, 2) | Out-Null
 $g.ReleaseHdc($hdc)
 
-# Active-HDL no escala por DPI: PrintWindow la dibuja a tamano logico
-# (fisico / escala de Windows). Ademas, maximizada se sale unos pixeles de la
-# pantalla por cada lado: se recorta ese borde.
+# DPI
 $escala = [Cap.W]::GetDpiForSystem() / 96.0
 $wl = [int][Math]::Round($w / $escala); $hl = [int][Math]::Round($hgt / $escala)
 $borde = 0

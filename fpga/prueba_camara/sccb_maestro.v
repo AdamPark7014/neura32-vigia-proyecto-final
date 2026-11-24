@@ -1,30 +1,20 @@
 `timescale 1ns / 1ps
-// ============================================================
-// MAESTRO SCCB EN HARDWARE (solo para la prueba de la camara)
-// Configura la OV7670 sin procesador: pulso de reset, reinicio de
-// registros, lectura de PID y VER, y la tabla de registros. SCL de ~100 kHz.
-// Al terminar la tabla queda en espera y acepta ordenes de fuera
-// (ext_wr / ext_rd): asi la PC puede escribir o leer cualquier registro
-// de la camara en vivo para afinar la imagen.
-// Cada transaccion es una lista de simbolos:
-//   escritura: S B(0x42) B(reg) B(valor) P
-//   lectura:   S B(0x42) B(reg) P S B(0x43) R P
-//   S = inicio, P = fin, B = byte enviado + 9.o bit, R = byte recibido + NA
-// ============================================================
+
+// maestro SCCB
 module sccb_maestro #(
-    parameter CICLOS_CUARTO = 63,      // 25 MHz / (4 x 63) = 99 kHz
-    parameter CICLOS_MS     = 25000    // ciclos de 25 MHz en 1 ms
+    parameter CICLOS_CUARTO = 63,
+    parameter CICLOS_MS     = 25000
 ) (
     input  wire       clk,
     input  wire       rst,
     output reg        sioc,
-    output reg        siod_bajo,       // 1 = poner SIOD en 0 (drenador abierto)
+    output reg        siod_bajo,
     input  wire       siod_in,
     output reg        cam_reset_n,
     output reg  [7:0] pid,
     output reg  [7:0] ver,
     output reg        hecho,
-    // ordenes de fuera (un pulso de un ciclo cuando hecho = 1 y ext_libre = 1)
+    // ordenes externas
     input  wire       ext_wr,
     input  wire       ext_rd,
     input  wire [7:0] ext_reg,
@@ -32,32 +22,32 @@ module sccb_maestro #(
     output reg  [7:0] ext_dato,
     output wire       ext_libre
 );
-    // ---------------- tabla de comandos {tipo, registro, valor} ----------------
+    // comandos
     localparam C_ESPERA = 2'd0, C_ESCRIBE = 2'd1, C_LEE = 2'd2, C_FIN = 2'd3;
     reg [7:0]  pc;
     wire [17:0] comando;
 
     tabla_ov7670 tabla (.indice(pc), .comando(comando));
 
-    // ---------------- simbolos de la transaccion ----------------
+    // simbolos
     localparam S_INI = 2'd0, S_BYTE = 2'd1, S_LEE = 2'd2, S_FIN = 2'd3;
     reg [1:0] tipo_sim [0:7];
     reg [7:0] byte_sim [0:7];
     reg [3:0] nsim, sim;
-    reg [3:0] bit_n;                  // 0..8 dentro de un byte
-    reg [1:0] cuarto;                 // 4 cuartos por bit
+    reg [3:0] bit_n;
+    reg [1:0] cuarto;
     reg [15:0] cuenta;
     reg [7:0]  ms;
     reg [7:0]  rx;
     reg [1:0]  siod_s;
     reg        destino_ver;
-    reg        externo;               // la transaccion en curso la pidio la PC
+    reg        externo;
 
     localparam E_CMD = 3'd0, E_ESPERA = 3'd1, E_SIM = 3'd2, E_FIN = 3'd3;
     reg [2:0] estado;
     assign ext_libre = (estado == E_FIN);
 
-    // nivel deseado de SCL y SDA segun el simbolo y el cuarto
+    // niveles de SCL y SDA
     reg scl_d, sda_d;
     always @(*) begin
         scl_d = 1'b1; sda_d = 1'b1;
@@ -71,7 +61,7 @@ module sccb_maestro #(
                 end
                 S_LEE: begin
                     scl_d = (cuarto == 2'd1) || (cuarto == 2'd2);
-                    sda_d = 1'b1;                          // suelta SIOD; en el 9.o bit es el NA
+                    sda_d = 1'b1;
                 end
             endcase
         end
@@ -124,7 +114,6 @@ module sccb_maestro #(
                 E_SIM: begin
                     if (fin_cuarto) begin
                         cuenta <= 16'd0;
-                        // muestra el bit leido al final del segundo cuarto en alto
                         if (tipo_sim[sim] == S_LEE && cuarto == 2'd2 && bit_n < 4'd8)
                             rx <= {rx[6:0], siod_s[1]};
                         cuarto <= cuarto + 2'd1;
@@ -149,7 +138,7 @@ module sccb_maestro #(
                     end else cuenta <= cuenta + 16'd1;
                 end
 
-                // tabla terminada: se atienden las ordenes de la PC
+                // ordenes externas
                 E_FIN: begin
                     hecho  <= 1'b1;
                     cuenta <= 16'd0; sim <= 4'd0; bit_n <= 4'd0; cuarto <= 2'd0;

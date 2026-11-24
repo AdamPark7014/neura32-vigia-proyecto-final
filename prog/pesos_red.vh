@@ -1,12 +1,7 @@
-// ============================================================
-// PESOS DE LA RED NEURONAL 9 -> 16 -> 8 (generado por sw/entrenar_red.py)
-// Enteros de 8 bits con signo; sesgos de 32 bits. No editar a mano.
-// Exactitud cuantizada sobre el conjunto de entrenamiento: 87.5%
-// ============================================================
 localparam RED_ENTRADAS = 9, RED_OCULTAS = 16, RED_SALIDAS = 8, RED_SH1 = 2;
-reg signed [7:0]  RED_W1 [0:143];   // W1[j*9 + i]
+reg signed [7:0]  RED_W1 [0:143];
 reg signed [31:0] RED_B1 [0:15];
-reg signed [7:0]  RED_W2 [0:127];  // W2[k*16 + j]
+reg signed [7:0]  RED_W2 [0:127];
 reg signed [31:0] RED_B2 [0:7];
 
 task cargar_pesos;
@@ -40,17 +35,17 @@ task cargar_pesos;
     end
 endtask
 
-// Plantillas de las 8 clases (valor de SW[8:0]) para el testbench
+// plantillas
 function [8:0] red_plantilla; input integer k;
     case (k)
-        0: red_plantilla = 9'h155;  // X
-        1: red_plantilla = 9'h1EF;  // O (anillo)
-        2: red_plantilla = 9'h0BA;  // +
-        3: red_plantilla = 9'h038;  // - (barra)
-        4: red_plantilla = 9'h092;  // | (palo)
-        5: red_plantilla = 9'h054;  // / diagonal
-        6: red_plantilla = 9'h111;  // \ diagonal
-        7: red_plantilla = 9'h097;  // T
+        0: red_plantilla = 9'h155;
+        1: red_plantilla = 9'h1EF;
+        2: red_plantilla = 9'h0BA;
+        3: red_plantilla = 9'h038;
+        4: red_plantilla = 9'h092;
+        5: red_plantilla = 9'h054;
+        6: red_plantilla = 9'h111;
+        7: red_plantilla = 9'h097;
         default: red_plantilla = 9'h000;
     endcase
 endfunction

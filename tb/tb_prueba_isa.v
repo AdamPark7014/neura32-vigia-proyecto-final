@@ -1,12 +1,4 @@
 `timescale 1ns / 1ps
-// ============================================================
-// BANCO DE PRUEBAS AUTOVERIFICABLE — TODAS LAS INSTRUCCIONES
-// Ejecuta fpga/programa_isa.txt (el archivo en hexadecimal que escribe
-// tb/generar_rom.v a partir de programa_prueba_isa.vh) en el sistema
-// completo y compara cada resultado que el programa dejo en la RAM con
-// el valor esperado, calculado aqui con operadores de Verilog.
-// Al final imprime: PRUEBAS: 64  ERRORES: 0
-// ============================================================
 module tb_prueba_isa;
 
     reg clk = 1'b0;
@@ -20,7 +12,7 @@ module tb_prueba_isa;
     wire [31:0] control;
     wire [31:0] ciclos, instret;
 
-    // el mismo ensamblador, solo para saber donde quedaron las etiquetas
+    // ensamblador
     generador_programa #(.PROGRAMA(2)) gen ();
 
     wire cam_siod;
@@ -38,7 +30,7 @@ module tb_prueba_isa;
         .ciclos(ciclos), .instret(instret)
     );
 
-    // ---- consola del programa ----
+    // consola del programa
     reg [8*64-1:0] texto = 0;
     always @(posedge clk)
         if (consola_we) begin
@@ -50,7 +42,7 @@ module tb_prueba_isa;
     always @(posedge clk)
         if (!rst && instr_ilegal) ilegales = ilegales + 1;
 
-    // ---- valores esperados ----
+    // valores esperados
     localparam [31:0] A = 32'h12345678;
     localparam [31:0] B = 32'hDEADBEEF;
     localparam N = 61;

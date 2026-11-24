@@ -1,25 +1,3 @@
-"""
-Entrena la red neuronal binaria de NEURA-32 Vigia y la exporta a Verilog.
-
-Red:  512 entradas (silueta de 16 x 32 bits) -> 64 neuronas binarias -> 3 clases
-      clase 0 = persona, 1 = objeto o animal, 2 = ruido (sombra, luz, manchas)
-      La persona puede verse de cuerpo completo, de medio cuerpo o solo el busto
-      (cabeza y hombros, como una foto tamano infantil).
-
-Capa oculta binaria: pesos de 1 bit. En el procesador cada neurona es
-    cuenta = POPCOUNT(XNOR(x, w))   sobre 16 palabras de 32 bits
-    a      = cuenta >= T            (umbral entero)
-y XNOR y POPCOUNT son instrucciones del procesador: xnor (tabla OP_R2) y cpop (tabla OP_R3).
-Capa de salida: pesos de 8 bits con signo, o_k = B2_k + suma de W2_kj donde a_j = 1.
-
-Las siluetas se generan en la rejilla de 80 x 60 de la mascara y se recortan
-con la MISMA aritmetica entera que usa el programa del RISC-V (ventana 1:2
-centrada en el recuadro, muestreo con desplazamientos). Se agregan errores
-tipicos de una mascara real: bordes comidos, huecos, ruido y sombra en los pies.
-
-Salida: prog/pesos_vigia.vh (tarea cargar_pesos_vigia) y docs/img/siluetas_*.png.
-Uso:   python sw/entrenar_vigia.py
-"""
 import os
 import numpy as np
 
@@ -27,9 +5,6 @@ rng = np.random.default_rng(2026)
 ANCHO, ALTO = 80, 60
 YY, XX = np.mgrid[0:ALTO, 0:ANCHO]
 
-# ----------------------------------------------------------------------------
-# Figuras en la rejilla de 80 x 60
-# ----------------------------------------------------------------------------
 def elipse(cx, cy, rx, ry):
     return ((XX - cx) / max(rx, 0.5)) ** 2 + ((YY - cy) / max(ry, 0.5)) ** 2 <= 1.0
 
@@ -44,16 +19,13 @@ def segmento(xa, ya, xb, yb, grosor):
     return (XX - px) ** 2 + (YY - py) ** 2 <= (grosor / 2.0) ** 2
 
 def persona(alto, cx, pies, fase=None, de_lado=None, hombros=None):
-    """Silueta de una persona de pie o caminando.
-    Si la estatura es mayor que la imagen, lo que no cabe queda fuera: asi salen el
-    medio cuerpo y el busto (ver persona_cerca)."""
     H = alto
     if fase is None:
-        fase = rng.uniform(-1, 1)            # zancada
+        fase = rng.uniform(-1, 1)
     if de_lado is None:
         de_lado = rng.random() < 0.5
     if hombros is None:
-        hombros = rng.random() < 0.5         # hombros caidos (redondeados) o cuadrados
+        hombros = rng.random() < 0.5
     ancho_t = H * (rng.uniform(0.17, 0.22) if de_lado else rng.uniform(0.24, 0.32))
     top = pies - H + 1
     r_cab = max(1.0, H * rng.uniform(0.065, 0.085))
@@ -63,10 +35,10 @@ def persona(alto, cx, pies, fase=None, de_lado=None, hombros=None):
     if hombros:
         caida = H * rng.uniform(0.02, 0.05)
         m |= elipse(cx, hombro + caida, ancho_t / 2, caida)
-        m |= rect(cx - ancho_t / 2, hombro + caida, cx + ancho_t / 2, cadera)         # torso
+        m |= rect(cx - ancho_t / 2, hombro + caida, cx + ancho_t / 2, cadera)
     else:
-        m |= rect(cx - ancho_t / 2, hombro, cx + ancho_t / 2, cadera)                 # torso
-    m |= rect(cx - r_cab * 0.4, hombro - r_cab * 0.6, cx + r_cab * 0.4, hombro)       # cuello
+        m |= rect(cx - ancho_t / 2, hombro, cx + ancho_t / 2, cadera)
+    m |= rect(cx - r_cab * 0.4, hombro - r_cab * 0.6, cx + r_cab * 0.4, hombro)
     paso = fase * H * 0.18
     g_pierna = max(1.6, ancho_t * 0.42)
     m |= segmento(cx - ancho_t * 0.22, cadera, cx - ancho_t * 0.22 - paso, pies, g_pierna)
@@ -77,16 +49,13 @@ def persona(alto, cx, pies, fase=None, de_lado=None, hombros=None):
         ang = rng.uniform(-0.35, 0.35) + (lado * fase * 0.3)
         xb = cx + lado * ancho_t / 2 + np.sin(ang) * largo * 0.4 * lado
         m |= segmento(cx + lado * ancho_t / 2, hombro + 1, xb + np.sin(ang) * largo * 0.2, hombro + largo, g_brazo)
-    if rng.random() < 0.2:                                                            # mochila o bolsa
+    if rng.random() < 0.2:
         lado = rng.choice([-1, 1])
         m |= rect(cx + lado * ancho_t / 2, hombro + 1, cx + lado * (ancho_t / 2 + H * 0.1), cadera - 1)
     return m
 
 def persona_cerca(tipo, estatura=None, cx=None, top=None, corte=None, **kw):
-    """Persona cerca de la camara: no cabe completa en la imagen.
-       tipo 1 = medio cuerpo (de la cabeza a la cintura o la cadera)
-       tipo 2 = busto (cabeza y hombros, como una foto tamano infantil)
-    Lo de abajo lo corta el borde de la imagen o un mueble (mostrador, escritorio)."""
+    # persona cerca de la camara
     while True:
         if tipo == 1:
             H = rng.uniform(45, 115) if estatura is None else estatura
@@ -99,10 +68,10 @@ def persona_cerca(tipo, estatura=None, cx=None, top=None, corte=None, **kw):
             y_corte = ALTO - 1 if rng.random() < 0.7 else rng.uniform(30, ALTO - 2)
         y_top = (y_corte - visible * H) if top is None else top
         if y_top < 0 and top is None:
-            continue                                   # la cabeza debe quedar a la vista
+            continue
         x = cx
         if x is None:
-            medio = min(38.0, 0.16 * H + 2)            # que los hombros no se salgan por los lados
+            medio = min(38.0, 0.16 * H + 2)
             x = rng.uniform(medio, ANCHO - medio)
         kw.setdefault("de_lado", rng.random() < (0.3 if tipo == 1 else 0.15))
         m = persona(H, x, y_top + H - 1, **kw) & (YY <= y_corte)
@@ -110,7 +79,7 @@ def persona_cerca(tipo, estatura=None, cx=None, top=None, corte=None, **kw):
             return m
 
 def animal(largo, cx, pies):
-    """Perro o gato: cuerpo horizontal, cuatro patas, cabeza y cola."""
+    # perro o gato
     alto_c = largo * rng.uniform(0.28, 0.42)
     patas = largo * rng.uniform(0.2, 0.32)
     cy = pies - patas - alto_c / 2
@@ -126,86 +95,82 @@ def animal(largo, cx, pies):
     return m
 
 def objeto(cx, pies):
-    """Cajas, puertas, carritos, maletas, sillas, pantallas, mesas: formas rigidas.
-    Varias se parecen a un busto o a medio cuerpo (algo angosto sobre algo ancho, o
-    cortadas por el borde de abajo) para que la red aprenda la diferencia."""
+    # cajas
     tipo = rng.integers(0, 9)
-    if tipo == 4:                                     # pantalla o letrero sobre un poste
+    if tipo == 4:
         w = rng.uniform(12, 44); h = w * rng.uniform(0.5, 0.8)
         poste = rng.uniform(4, 22)
         m = rect(cx - w / 2, pies - poste - h, cx + w / 2, pies - poste)
         m |= rect(cx - 1.2, pies - poste, cx + 1.2, pies)
         m |= rect(cx - w * 0.25, pies - 1.5, cx + w * 0.25, pies)
         return m
-    if tipo == 5:                                     # cajas apiladas (la de arriba mas chica)
+    if tipo == 5:
         w = rng.uniform(14, 46); h = rng.uniform(8, 30)
         w2 = w * rng.uniform(0.3, 0.8); h2 = rng.uniform(5, 20)
         corr = rng.uniform(-0.3, 0.3) * (w - w2)
         m = rect(cx - w / 2, pies - h, cx + w / 2, pies)
         m |= rect(cx + corr - w2 / 2, pies - h - h2, cx + corr + w2 / 2, pies - h)
         return m
-    if tipo == 6:                                     # pelota, globo o lampara
+    if tipo == 6:
         r = rng.uniform(3, 16)
         m = elipse(cx, pies - r, r * rng.uniform(0.8, 1.2), r)
         if rng.random() < 0.4:
             m |= rect(cx - 0.8, pies - r, cx + 0.8, pies + rng.uniform(4, 20))
         return m
-    if tipo == 7:                                     # mesa o banca: tabla ancha con patas
+    if tipo == 7:
         w = rng.uniform(20, 60); h = rng.uniform(10, 30); g = rng.uniform(1.5, 4)
         m = rect(cx - w / 2, pies - h, cx + w / 2, pies - h + g)
         m |= rect(cx - w / 2, pies - h, cx - w / 2 + g, pies)
         m |= rect(cx + w / 2 - g, pies - h, cx + w / 2, pies)
         return m
-    if tipo == 8:                                     # mueble o puerta que llega al borde de abajo
+    if tipo == 8:
         w = rng.uniform(10, 60); y0 = rng.uniform(5, 45)
         return rect(cx - w / 2, y0, cx + w / 2, ALTO - 1)
-    if tipo == 0:                                     # caja o mueble (a veces alto como persona)
+    if tipo == 0:
         w = rng.uniform(6, 34); h = rng.uniform(6, 50)
         return rect(cx - w / 2, pies - h, cx + w / 2, pies)
-    if tipo == 1:                                     # carrito o auto pequeno
+    if tipo == 1:
         w = rng.uniform(16, 50); h = w * rng.uniform(0.3, 0.6)
         m = rect(cx - w / 2, pies - h, cx + w / 2, pies - h * 0.25)
         r = h * 0.25
         m |= elipse(cx - w * 0.3, pies - r, r, r) | elipse(cx + w * 0.3, pies - r, r, r)
         return m
-    if tipo == 2:                                     # silla
+    if tipo == 2:
         w = rng.uniform(8, 16); h = rng.uniform(14, 26)
         m = rect(cx - w / 2, pies - h * 0.5, cx + w / 2, pies - h * 0.42)
         m |= rect(cx + w / 2 - 2, pies - h, cx + w / 2, pies)
         m |= rect(cx - w / 2, pies - h * 0.45, cx - w / 2 + 1.5, pies)
         return m
-    w = rng.uniform(5, 12); h = rng.uniform(8, 18)    # maleta con asa
+    w = rng.uniform(5, 12); h = rng.uniform(8, 18)
     m = rect(cx - w / 2, pies - h, cx + w / 2, pies)
     m |= rect(cx - 1, pies - h - 3, cx + 1, pies - h)
     return m
 
 def ruido():
-    """Sombras, cambios de luz, reflejos y manchas sin forma."""
+    # sombras
     tipo = rng.integers(0, 4)
-    if tipo == 0:                                     # sombra alargada en el piso
+    if tipo == 0:
         w = rng.uniform(16, 70); h = rng.uniform(2, 7)
         return elipse(rng.uniform(10, 70), rng.uniform(30, 58), w / 2, h / 2)
-    if tipo == 1:                                     # parche de luz irregular
+    if tipo == 1:
         m = np.zeros((ALTO, ANCHO), bool)
         cx, cy = rng.uniform(10, 70), rng.uniform(10, 50)
         for _ in range(rng.integers(3, 8)):
             m |= elipse(cx + rng.normal(0, 8), cy + rng.normal(0, 6), rng.uniform(3, 12), rng.uniform(3, 10))
         return m
-    if tipo == 2:                                     # puntos dispersos (parpadeo)
+    if tipo == 2:
         cx, cy = rng.uniform(10, 70), rng.uniform(10, 50)
         w, h = rng.uniform(8, 40), rng.uniform(8, 40)
         zona = rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
         return zona & (rng.random((ALTO, ANCHO)) < rng.uniform(0.25, 0.5))
-    # borde que vibra: linea delgada
+    # borde que vibra
     if rng.random() < 0.5:
         x = rng.uniform(5, 75); y0 = rng.uniform(0, 30)
         return rect(x, y0, x + rng.uniform(0, 1.5), y0 + rng.uniform(10, 30))
     y = rng.uniform(5, 55); x0 = rng.uniform(0, 40)
     return rect(x0, y, x0 + rng.uniform(15, 40), y + rng.uniform(0, 1.5))
 
-# ----------------------------------------------------------------------------
-# Errores de una mascara real
-# ----------------------------------------------------------------------------
+# errores de una mascara real
 def dilata(m):
     p = np.pad(m, 1)
     return p[1:-1, 1:-1] | p[:-2, 1:-1] | p[2:, 1:-1] | p[1:-1, :-2] | p[1:-1, 2:]
@@ -221,7 +186,7 @@ def ensucia(m):
         m = erosiona(m)
     borde = dilata(m) & ~erosiona(m)
     m = m ^ (borde & (rng.random(m.shape) < rng.uniform(0, 0.15)))
-    if rng.random() < 0.3 and m.any():                                # hueco (ropa del color del fondo)
+    if rng.random() < 0.3 and m.any():
         ys, xs = np.nonzero(m)
         i = rng.integers(len(ys))
         m &= ~elipse(xs[i], ys[i], rng.uniform(1, 3), rng.uniform(1, 4))
@@ -236,7 +201,6 @@ def sombra_pies(m):
     return m | elipse((x0 + x1) / 2 + lado * w / 2, y - 0.5, w / 2, rng.uniform(1, 2))
 
 def mayor_componente(m):
-    """Se queda con la mancha conectada (4 vecinos) mas grande, como el programa."""
     ys, xs = np.nonzero(m)
     if len(ys) == 0:
         return m
@@ -257,9 +221,6 @@ def mayor_componente(m):
             mejor, mejor_n = n_et, n
     return etiqueta == mejor
 
-# ----------------------------------------------------------------------------
-# Recorte 16 x 32 identico al del programa del RISC-V
-# ----------------------------------------------------------------------------
 def recorte(m):
     ys, xs = np.nonzero(m)
     x0, x1, y0, y1 = int(xs.min()), int(xs.max()), int(ys.min()), int(ys.max())
@@ -279,7 +240,6 @@ def recorte(m):
     return out
 
 def empaca(img):
-    """32 x 16 bits -> 16 palabras: palabra r/2, bit (r%2)*16 + c."""
     palabras = []
     for w in range(16):
         v = 0
@@ -293,8 +253,6 @@ def empaca(img):
 TIPOS_PERSONA = ("cuerpo completo", "medio cuerpo", "busto")
 
 def muestra(clase, tipo=None):
-    """Una silueta recortada a 16 x 32. En la clase 0 (persona), tipo 0 = cuerpo
-    completo, 1 = medio cuerpo, 2 = busto; sin tipo se sortea 40 / 30 / 30 %."""
     while True:
         if clase == 0:
             t = tipo if tipo is not None else rng.choice(3, p=(0.4, 0.3, 0.3))
@@ -304,7 +262,7 @@ def muestra(clase, tipo=None):
                 m = persona(alto, rng.uniform(3, 77), pies)
                 if rng.random() < 0.4:
                     m = sombra_pies(m)
-                if rng.random() < 0.15:                                # tapada abajo
+                if rng.random() < 0.15:
                     m &= YY < pies - alto * rng.uniform(0.05, 0.3)
             else:
                 m = persona_cerca(t)
@@ -329,9 +287,7 @@ Xtr, Ytr = conjunto(4000)
 Xte, Yte = conjunto(600)
 print(f"entrenamiento {len(Xtr)}, prueba {len(Xte)}")
 
-# ----------------------------------------------------------------------------
-# Entrenamiento de la red binaria (estimador directo en la derivada)
-# ----------------------------------------------------------------------------
+# entrenamiento de la red binaria
 N_IN, N_H, N_OUT = 512, 64, 3
 W1 = rng.uniform(-0.1, 0.1, (N_H, N_IN)).astype(np.float32)
 b1 = np.zeros(N_H, np.float32)
@@ -379,9 +335,7 @@ for epoca in range(40):
         pred = adelante(Xte, W1, b1, W2, b2)[4].argmax(1)
         print(f"epoca {epoca + 1:2d}: exactitud de prueba {(pred == Yte).mean() * 100:.1f}%")
 
-# ----------------------------------------------------------------------------
-# Exportar a enteros: lo que ejecuta el RISC-V
-# ----------------------------------------------------------------------------
+# exportar a enteros
 bits_w1 = (W1 >= 0)
 T1 = np.clip(np.ceil((512 - b1) / 2), 0, 513).astype(int)
 esc2 = 127.0 / np.abs(W2).max()
@@ -408,21 +362,19 @@ print(f"exactitud con enteros (lo que corre en el RISC-V): {exact:.1f}%")
 print("matriz de confusion (filas real, columnas predicha) persona/objeto/ruido:")
 print(conf)
 
-# exactitud por tipo de persona (400 siluetas nuevas de cada tipo)
+# exactitud por tipo de persona
 exact_tipo = []
 for t in range(3):
     bien = sum(inferir_entera(muestra(0, t).reshape(-1))[0] == 0 for _ in range(400))
     exact_tipo.append(bien / 4.0)
     print(f"personas de {TIPOS_PERSONA[t]} reconocidas: {exact_tipo[t]:.1f}%")
 
-# tres siluetas de prueba que van en la memoria de programa: el procesador las clasifica
-# al arrancar (autoprueba) y con la primera mide la velocidad de la red
 rng_guardado = rng
 rng = np.random.default_rng(7)
 figuras_prueba = [
-    persona(40, 40, 50, fase=0.4, de_lado=False),                                           # cuerpo completo
-    persona_cerca(1, estatura=80, cx=40, top=12, corte=ALTO - 1, fase=0.2, de_lado=False),  # medio cuerpo
-    persona_cerca(2, estatura=170, cx=40, top=6, corte=ALTO - 1, fase=0.0, de_lado=False),  # busto
+    persona(40, 40, 50, fase=0.4, de_lado=False),
+    persona_cerca(1, estatura=80, cx=40, top=12, corte=ALTO - 1, fase=0.2, de_lado=False),
+    persona_cerca(2, estatura=170, cx=40, top=6, corte=ALTO - 1, fase=0.0, de_lado=False),
 ]
 rng = rng_guardado
 imgs_prueba = [recorte(mayor_componente(f)) for f in figuras_prueba]
@@ -438,17 +390,6 @@ personas_prueba = sum(c == 0 for c in clases_prueba)
 raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 destino = os.path.join(raiz, "prog", "pesos_vigia.vh")
 with open(destino, "w", encoding="ascii") as f:
-    f.write("// ============================================================\n")
-    f.write("// RED BINARIA DE NEURA-32 VIGIA 512 -> 64 -> 3 (generado por sw/entrenar_vigia.py)\n")
-    f.write("// Capa oculta: pesos de 1 bit (XNOR + POPCOUNT) y umbral entero por neurona.\n")
-    f.write("// Capa de salida: pesos de 8 bits con signo. No editar a mano.\n")
-    f.write(f"// Exactitud con enteros sobre {len(Xte)} siluetas de prueba: {exact:.1f}%\n")
-    f.write("// Matriz de confusion (persona / objeto o animal / ruido):\n")
-    for k in range(3):
-        f.write(f"//   {conf[k].tolist()}\n")
-    f.write("// Personas reconocidas por tipo: " + ", ".join(
-        f"{TIPOS_PERSONA[t]} {exact_tipo[t]:.1f}%" for t in range(3)) + "\n")
-    f.write("// ============================================================\n")
     f.write("localparam VIG_ENTRADAS = 512, VIG_OCULTAS = 64, VIG_SALIDAS = 3;\n")
     f.write("reg        [31:0] VIG_W1 [0:1023];      // neurona j, palabra w -> VIG_W1[16*j + w]\n")
     f.write("reg        [31:0] VIG_T1 [0:63];        // a_j = POPCOUNT(XNOR) >= VIG_T1[j]\n")
@@ -470,8 +411,6 @@ with open(destino, "w", encoding="ascii") as f:
     f.write("    end\nendtask\n")
 print("escrito", destino)
 
-# imagenes de ejemplo para el README: tres filas de personas (cuerpo completo, medio cuerpo
-# y busto), una de objetos y animales y una de ruido
 try:
     from PIL import Image
     os.makedirs(os.path.join(raiz, "docs", "img"), exist_ok=True)

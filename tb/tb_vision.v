@@ -1,17 +1,4 @@
 `timescale 1ns / 1ps
-// ============================================================
-// BANCO DE PRUEBAS DE LA TUBERIA DE VISION (sin procesador)
-// Camara simulada en QVGA a color -> vision_vigia con el tamano de la placa
-// (320 x 240, bloques de 4 x 4). Hace el papel del procesador: aprende el
-// fondo, libera cada mascara y pone un recuadro de persona, uno de intruso
-// y uno de objeto. Guarda en tb/salidas:
-//   vga_color.ppm      un cuadro completo del monitor (640 x 480)
-//   pc_campo0/1.txt    los dos campos que bajaria la PC por JTAG
-//   pc_mascara.txt     la mascara que bajaria la PC
-//   pc_datos.txt       los datos de recuadros que bajaria la PC
-// y revisa lo que se puede medir: reloj de pixel, cabecera de los campos,
-// datos de vuelta y que la mascara encuentre a la persona.
-// ============================================================
 module tb_vision;
     reg clk50 = 0;
     always #10 clk50 = ~clk50;
@@ -20,7 +7,7 @@ module tb_vision;
 
     reg rst = 1;
 
-    // ---------------- camara ----------------
+    // camara
     wire pclk, href, vsync, sioc, siod;
     wire [7:0] d;
     pullup (siod);
@@ -31,7 +18,7 @@ module tb_vision;
         .pclk(pclk), .href(href), .vsync(vsync), .d(d), .sioc(sioc), .siod(siod)
     );
 
-    // ---------------- vision ----------------
+    // vision
     reg         habilita = 0, aprender = 1, ver_mascara = 0, ack = 0;
     reg  [31:0] zona = 0;
     reg  [8:0]  linea = 0;
@@ -57,10 +44,10 @@ module tb_vision;
         .vga_r(vga_r), .vga_g(vga_g), .vga_b(vga_b), .vga_hs(vga_hs), .vga_vs(vga_vs)
     );
 
-    // el "procesador": libera cada mascara en cuanto esta lista
+    // acuse
     always @(posedge clk25) ack <= listo & ~ack;
 
-    // ---------------- cuadros de la camara ----------------
+    // cuadros de la camara
     realtime t_cuadro = 0, periodo = 0;
     integer  n_cuadros = 0;
     always @(posedge vsync) begin
@@ -80,7 +67,7 @@ module tb_vision;
         end
     endtask
 
-    // ---------------- guardar un cuadro del monitor ----------------
+    // guardar cuadro
     integer f, guardando = 0, pix = 0;
     always @(posedge clk25) begin
         if (guardando == 1 && dut.dibujo.h2 == 0 && dut.dibujo.v2 == 0) begin
@@ -95,7 +82,7 @@ module tb_vision;
         end
     end
 
-    // ---------------- bajar por JTAG, como la PC ----------------
+    // lectura JTAG
     task guardar_bits;
         input [8*32-1:0] nombre;
         integer g, j;
@@ -116,23 +103,23 @@ module tb_vision;
         $display("=== Vision: camara a color, monitor y vista en la PC ===");
         #200 rst = 0; cam_resetb = 1;
         #100;
-        // lo que deja el programa en la camara: QVGA, YUV, 31 cuadros por segundo
-        camara.regs[8'h11] = 8'h01;      // CLKRC
-        camara.regs[8'h6B] = 8'h4A;      // DBLV: PLL x4
-        camara.regs[8'h0C] = 8'h04;      // COM3: escalado
-        camara.regs[8'h3E] = 8'h19;      // COM14: escalado manual, PCLK entre 2
-        camara.regs[8'h3A] = 8'h04;      // TSLB: Y U Y V
+        // configuracion de la camara
+        camara.regs[8'h11] = 8'h01;
+        camara.regs[8'h6B] = 8'h4A;
+        camara.regs[8'h0C] = 8'h04;
+        camara.regs[8'h3E] = 8'h19;
+        camara.regs[8'h3A] = 8'h04;
         camara.escena = 2'd0;
         habilita = 1;
 
-        // dos cuadros para aprender el fondo
+        // aprende el fondo
         wait (n_cuadros == 3);
         aprender = 0;
-        // entra la persona; el recuadro y la zona los pondria el programa
+        // entra la persona
         camara.escena = 2'd2; camara.t_escena = 6;
-        cajas[31:0]    = {8'd58, 8'd42, 8'd10, 8'd22};      // persona: celdas x 22..42, y 10..58
-        cajas[63:32]   = {8'd40, 8'd75, 8'd30, 8'd60};      // intruso de ejemplo
-        cajas[95:64]   = {8'd12, 8'd14, 8'd3,  8'd4};       // objeto, pegado arriba
+        cajas[31:0]    = {8'd58, 8'd42, 8'd10, 8'd22};
+        cajas[63:32]   = {8'd40, 8'd75, 8'd30, 8'd60};
+        cajas[95:64]   = {8'd12, 8'd14, 8'd3,  8'd4};
         colores        = {10'd0, 2'd3, 2'd2, 2'd1};
         zona           = {8'd55, 8'd78, 8'd25, 8'd55};
         linea          = {1'b1, 8'd15};
@@ -149,7 +136,7 @@ module tb_vision;
         wait (guardando == 3);
         revisar("se guardo un cuadro completo del monitor", pix == 640 * 480);
 
-        // ---- la PC baja dos campos ----
+        // dos campos
         dut.vista_pc.jtag_virtual.poner_ir(2'd1);
         dut.vista_pc.jtag_virtual.correr_dr(16 + 160 * 60 * 4 + 80 * 30 * 8);
         for (i = 0; i < 16; i = i + 1) cab[i] = dut.vista_pc.jtag_virtual.datos[i];
@@ -160,7 +147,7 @@ module tb_vision;
         revisar("cabecera del segundo campo (A5, campo 1)", cab == 16'hA501);
         guardar_bits("tb/salidas/pc_campo1.txt");
 
-        // ---- la mascara y los datos ----
+        // mascara y datos
         dut.vista_pc.jtag_virtual.poner_ir(2'd2);
         dut.vista_pc.jtag_virtual.correr_dr(4800);
         unos = 0;

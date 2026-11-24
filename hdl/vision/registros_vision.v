@@ -1,27 +1,6 @@
 `timescale 1ns / 1ps
-// ============================================================
-// REGISTROS DE LA CAMARA Y DE LA VISION (pagina 0xFFFF_0000, 0x40..0x9F)
-//   0x40  CAM_SAL   R/W  [0] SIOC  [1] SIOD en bajo (drenador abierto)
-//                        [2] RESET# de la camara  [3] PWDN
-//   0x44  CAM_ENT   R    [0] SIOD leido  [1] SIOC leido
-//   0x48  VIS_CTRL  R/W  [0] captura  [15:8] umbral  [19:16] alfa
-//                        [20] aprender fondo  [21] ver silueta en el monitor
-//                        [22] la camara manda el doble de tamano (tomar 1 de cada 2)
-//                        [24:23] orden de los bytes de la camara (ver cam_capture)
-//                        [26:25] fase del reloj XCLK: 0, 90, 180 o 270 grados
-//                                (arranca en 180, la que se midio limpia en la placa)
-//   0x4C  VIS_EST   R    [0] mascara lista  [1] banco  [31:16] cuadros
-//                   W    escribir 1 en [0] libera la mascara (ack)
-//   0x50  VIS_FG    R    pixeles de silueta en la ultima mascara
-//   0x54  ZONA      R/W  {y1, x1, y0, x0} en celdas de 80 x 60
-//   0x58  LINEA     R/W  [7:0] x  [8] visible
-//   0x5C  LETRERO   R/W  [0] mostrar "INTRUSO"  [1] parpadeo
-//                        [11:8] personas a la vista  [23:16] eventos (2 digitos BCD)
-//                        (los dos ultimos salen en la barra de estado del monitor)
-//   0x60..0x7C CAJA0..7  R/W  {y1, x1, y0, x0}
-//   0x80  COLORES   R/W  2 bits por caja: 0 apagada, 1 verde, 2 roja, 3 gris
-// La camara se configura por SCCB "a mano" (bit-bang) desde el programa.
-// ============================================================
+
+// registros de vision
 module registros_vision (
     input  wire        clk,
     input  wire        rst,

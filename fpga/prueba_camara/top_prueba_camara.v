@@ -1,20 +1,6 @@
 `timescale 1ns / 1ps
-// ============================================================
-// PRUEBA DE LA CAMARA OV7670 EN LA DE10-Lite (sin procesador)
-// Sirve para revisar el cableado antes del sistema completo:
-//   HEX5-4  PID de la camara (76 si responde por SCCB)
-//   HEX3-2  VER de la camara (73)
-//   HEX1-0  cuadros recibidos (cuenta VSYNC)
-//   LEDR0   configuracion terminada
-//   LEDR1   la camara respondio (PID = 0x76)
-//   LEDR2   VSYNC llega (cambia con cada cuadro)
-//   LEDR3   HREF llega (parpadea)
-//   LEDR4   PCLK llega (parpadea)
-//   SW8     barras de colores en el monitor
-//   KEY0    reinicio (vuelve a configurar la camara)
-//   VGA     el video de la camara en gris, 320 x 240 ampliado a 640 x 480
-// Mismo cableado que el proyecto (docs/PRUEBA-EN-PLACA.md).
-// ============================================================
+
+// prueba de camara
 module top_prueba_camara (
     input  wire        MAX10_CLK1_50,
     input  wire [1:0]  KEY,
@@ -33,28 +19,27 @@ module top_prueba_camara (
     output wire        VGA_VS,
     inout  wire [35:0] GPIO
 );
-    // ---------------- reloj de 25 MHz y reinicio ----------------
+    // reloj de 25 MHz
     reg clk25 = 1'b0;
     always @(posedge MAX10_CLK1_50) clk25 <= ~clk25;
     wire clk = clk25;
 
-    // El mismo reloj retrasado un cuarto de ciclo (10 ns): con el y con su
-    // inverso XCLK puede salir en cuatro fases (0, 90, 180 y 270 grados).
+    // reloj desfasado 90 grados
     reg clk25_n = 1'b0;
     always @(negedge MAX10_CLK1_50) clk25_n <= clk25;
-    wire [1:0] fase;                          // la elige la PC (sonda JTAG)
+    wire [1:0] fase;
     wire xclk = (fase[0] ? clk25_n : clk25) ^ fase[1];
 
-    wire      rst_jtag;                       // reinicio desde la PC (sonda JTAG)
+    wire      rst_jtag;
     reg [2:0] rst_s = 3'b111;
     always @(posedge clk) rst_s <= {rst_s[1:0], ~KEY[0] | rst_jtag};
     wire rst = rst_s[2];
 
-    // ---------------- camara: configuracion por SCCB ----------------
+    // camara
     wire       sioc, siod_bajo, reset_n, hecho;
     wire [7:0] pid, ver;
 
-    // La PC puede escribir o leer registros de la camara en vivo (sonda JTAG)
+    // acceso desde la PC
     wire       ext_wr, ext_rd, ext_libre;
     wire [7:0] ext_reg, ext_val, ext_dato;
 
@@ -67,17 +52,15 @@ module top_prueba_camara (
 
     assign GPIO[0]  = sioc;
     assign GPIO[1]  = siod_bajo ? 1'b0 : 1'bz;
-    // XCLK = 25 MHz. PCLK sale de XCLK con fase fija; si sus flancos caen junto
-    // a los de clk el muestreo pierde pulsos (rayas en la imagen), asi que la
-    // fase de XCLK se puede mover desde la PC para dejarla donde va limpio.
+    // XCLK
     assign GPIO[5]  = xclk;
     assign GPIO[14] = reset_n;
-    assign GPIO[15] = 1'b0;                   // PWDN
+    assign GPIO[15] = 1'b0;
     assign GPIO[35:16] = 20'bz;
 
     wire [7:0] cam_d = {GPIO[6], GPIO[7], GPIO[8], GPIO[9], GPIO[10], GPIO[11], GPIO[12], GPIO[13]};
 
-    // ---------------- captura y video ----------------
+    // captura
     wire        vid_we, cuadro_inicio;
     wire [16:0] vid_dir_esc, vid_dir_lec;
     wire [3:0]  vid_dato_esc, vid_dato_lec;
@@ -91,20 +74,16 @@ module top_prueba_camara (
         .prom_valido(), .prom_x(), .prom_y(), .prom_dato(), .cuadro_inicio(cuadro_inicio)
     );
 
-    // Video para el monitor: 320 x 240 con 4 bits de gris
+    // video VGA
     memoria_doble_puerto #(.addr_width(17), .data_width(4), .palabras(76800)) mem_video (
         .clk(clk), .we(vid_we), .dir_esc(vid_dir_esc), .dato_esc(vid_dato_esc),
         .dir_lec(vid_dir_lec), .dato_lec(vid_dato_lec)
     );
 
-    // Copia para la PC: 320 x 240 con 7 bits de gris (128 tonos; con 8 bits las
-    // dos copias no caben en los 182 bloques M9K), en DOS memorias (A y B).
-    // La camara escribe en una y la PC lee la otra, que guarda el ultimo
-    // cuadro completo: asi la imagen nunca llega partida y no hay que esperar.
-    // Se escriben con clk y se leen con el reloj del JTAG (TCK).
-    reg         banco_esc;                    // 0: la camara escribe en A, 1: en B
-    reg         escribiendo;                  // hay un cuadro en curso de escritura
-    reg         retenido;                     // cuadro completo guardado, en espera de la PC
+    // video para la PC
+    reg         banco_esc;
+    reg         escribiendo;
+    reg         retenido;
     wire        tck;
     wire [16:0] dir_pc;
     wire [6:0]  dato_a, dato_b;
@@ -132,7 +111,7 @@ module top_prueba_camara (
         .vga_r(VGA_R), .vga_g(VGA_G), .vga_b(VGA_B), .vga_hs(VGA_HS), .vga_vs(VGA_VS)
     );
 
-    // ---------------- actividad de las senales de la camara ----------------
+    // actividad de la camara
     reg [2:0]  pclk_s, href_s, vsync_s;
     reg [23:0] cuenta_pclk;
     reg [17:0] cuenta_href;
@@ -149,28 +128,26 @@ module top_prueba_camara (
 
     assign LEDR = {5'd0, cuenta_pclk[22], cuenta_href[8], cuadros[0], (pid == 8'h76), hecho};
 
-    // ---------------- mediciones para leer desde la PC ----------------
-    // Bytes por linea (640 px YUYV = 1280), lineas por cuadro (480),
-    // flancos de PCLK por segundo (6.25 MHz) y bits de datos que cambian.
-    reg [7:0]  d_r1, d_r2;                    // dato alineado con el flanco detectado de PCLK
+    // mediciones
+    reg [7:0]  d_r1, d_r2;
     reg [10:0] bytes_linea, bytes_med;
     reg [9:0]  lineas, lineas_med;
     reg [24:0] ciclos_seg;
     reg [22:0] pclk_seg, pclk_med;
     reg [7:0]  d_or, d_and, d_or_med, d_and_med;
-    reg [9:0]  malas, malas_med;              // lineas del cuadro que no traen 1280 bytes
+    reg [9:0]  malas, malas_med;
     wire flanco_pclk = pclk_s[1] & ~pclk_s[2];
     wire href_alto   = href_s[2];
     always @(posedge clk) begin
         d_r1 <= cam_d;
         d_r2 <= d_r1;
-        // bytes dentro de la linea
+        // bytes por linea
         if (href_s[2] & ~href_s[1]) begin
             bytes_med <= bytes_linea; bytes_linea <= 11'd0;
             if (bytes_linea != 11'd1280) malas <= malas + 10'd1;
         end
         else if (flanco_pclk && href_alto) bytes_linea <= bytes_linea + 11'd1;
-        // lineas dentro del cuadro y bits que cambian
+        // lineas por cuadro
         if (vsync_s[1] & ~vsync_s[2]) begin
             lineas_med <= lineas; lineas <= 10'd0;
             malas_med  <= malas;  malas  <= 10'd0;
@@ -179,7 +156,7 @@ module top_prueba_camara (
             if (href_s[1] & ~href_s[2]) lineas <= lineas + 10'd1;
             if (flanco_pclk && href_alto) begin d_or <= d_or | d_r2; d_and <= d_and & d_r2; end
         end
-        // frecuencia de PCLK
+        // PCLK
         if (ciclos_seg == 25'd24_999_999) begin
             ciclos_seg <= 25'd0; pclk_med <= pclk_seg; pclk_seg <= 23'd0;
         end else begin
@@ -188,14 +165,7 @@ module top_prueba_camara (
         end
     end
 
-    // Sonda JTAG: 96 bits que lee quartus_stp (leer_camara.tcl)
-    //   [95:88] PID  [87:80] VER  [79] hecho  [78:71] cuadros
-    //   [70:60] bytes por linea  [59:50] lineas por cuadro
-    //   [49:27] PCLK por segundo  [26:19] OR de D  [18:11] AND de D
-    //   [10:1] lineas malas por cuadro  [0] cuadro retenido para la PC
-    //   [104] maestro SCCB libre  [103:96] registro leido de la camara
-    // Fuente (21 bits): [0] reinicio  [2:1] fase de XCLK (arranca en 2 = 180 grados)
-    //   [10:3] valor  [18:11] registro  [19] escribir  [20] leer (en la subida)
+    // sonda JTAG
     wire [104:0] sonda = {ext_libre, ext_dato,
                           pid, ver, hecho, cuadros, bytes_med, lineas_med, pclk_med,
                           d_or_med, d_and_med, malas_med, retenido};
@@ -204,7 +174,7 @@ module top_prueba_camara (
     assign fase     = fuente[2:1];
     assign ext_val  = fuente[10:3];
     assign ext_reg  = fuente[18:11];
-    reg [2:0] wr_s, rd_s;                     // sincronizadores y detector de subida
+    reg [2:0] wr_s, rd_s;
     always @(posedge clk) begin
         wr_s <= {wr_s[1:0], fuente[19]};
         rd_s <= {rd_s[1:0], fuente[20]};
@@ -224,15 +194,7 @@ module top_prueba_camara (
         .source(fuente)
     );
 
-    // ---------------- video hacia la PC por JTAG virtual (flujo_camara.tcl) ----------------
-    // Registro de instruccion virtual (2 bits):
-    //   0 = nada
-    //   1 = imagen completa: 320 x 240 pixeles (614 400 bits)
-    //   2 = imagen rapida:   160 x 120 pixeles (153 600 bits), 1 de cada 2
-    // Cada corrimiento de datos manda un cuadro desde el pixel 0: 8 bits por
-    // pixel, primero el menos significativo. El pixel en turno es "act";
-    // mientras se corre se lee por adelantado el siguiente ("sig", la memoria
-    // tarda un ciclo de TCK) y al acabar el byte se carga en el registro.
+    // video por JTAG
     wire       tdi, tdo, v_cdr, v_sdr, v_udr;
     wire [1:0] v_ir;
     sld_virtual_jtag #(
@@ -247,18 +209,18 @@ module top_prueba_camara (
     wire        flujo  = (v_ir == 2'd1) || (v_ir == 2'd2);
     wire        rapido = (v_ir == 2'd2);
     reg  [16:0] act;
-    reg  [7:0]  col;                          // columna en la imagen rapida (0..159)
+    reg  [7:0]  col;
     reg  [2:0]  nbit;
     reg  [7:0]  desplaza;
-    reg         paso;                         // registro de un bit cuando no hay flujo
-    reg         leyendo;                      // la PC esta bajando un cuadro
-    reg  [1:0]  banco_t;                      // banco_esc visto desde TCK
-    reg         banco_lec;                    // memoria que se lee: la que NO escribe la camara
+    reg         paso;
+    reg         leyendo;
+    reg  [1:0]  banco_t;
+    reg         banco_lec;
 
-    // siguiente pixel: +1; en la imagen rapida +2 y al acabar el renglon se salta el impar
+    // siguiente pixel
     wire [16:0] sig = !rapido ? act + 17'd1 : (col == 8'd159) ? act + 17'd322 : act + 17'd2;
     wire [7:0]  dato_pc = {banco_lec ? dato_b : dato_a, 1'b0};
-    assign dir_pc = leyendo ? sig : 17'd0;   // en reposo se tiene listo el pixel 0
+    assign dir_pc = leyendo ? sig : 17'd0;
     assign tdo    = flujo ? desplaza[0] : paso;
 
     always @(posedge tck) begin
@@ -268,7 +230,7 @@ module top_prueba_camara (
         if (!flujo || v_udr) leyendo <= 1'b0;
         if (flujo && v_cdr) begin
             leyendo  <= 1'b1;
-            desplaza <= dato_pc;              // pixel 0 (la direccion en reposo es 0)
+            desplaza <= dato_pc;
             act <= 17'd0; col <= 8'd0; nbit <= 3'd0;
         end else if (flujo && v_sdr) begin
             if (nbit == 3'd7) begin
@@ -283,12 +245,7 @@ module top_prueba_camara (
         end
     end
 
-    // Lado de la camara (clk). Al terminar un cuadro (subida de VSYNC):
-    //   * si la PC no esta leyendo, se cambian las memorias: el cuadro recien
-    //     terminado queda para la PC y la camara sigue en la otra;
-    //   * si la PC esta leyendo, el cuadro se retiene (no se escribe mas) y el
-    //     cambio se hace en cuanto la PC termina; la camara vuelve a escribir
-    //     al empezar el siguiente cuadro.
+    // cambio de bufer
     reg [1:0] leyendo_s;
     always @(posedge clk) begin
         leyendo_s <= {leyendo_s[0], leyendo};
@@ -303,7 +260,7 @@ module top_prueba_camara (
         end
     end
 
-    // ---------------- displays ----------------
+    // displays
     function [7:0] siete_seg;
         input [3:0] n;
         case (n)

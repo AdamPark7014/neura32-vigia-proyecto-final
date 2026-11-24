@@ -1,9 +1,3 @@
-"""
-Convierte las imagenes que guardan tb_vigia y tb_vision (tb/salidas/*.ppm y *.pgm, en texto)
-a PNG en docs/img para el README.
-
-Uso:  python sw/convertir_imagenes.py
-"""
 import os
 from PIL import Image
 

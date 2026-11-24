@@ -1,24 +1,14 @@
-//Cargador de programas por JTAG
-//Con el mismo cable USB-Blaster la PC le pone otro programa al procesador sin volver
-//a compilar el proyecto: detiene el procesador, escribe las instrucciones en la memoria
-//de programa y lo suelta (fpga/cargar_programa.tcl).
-//
-//Registro de instruccion virtual (2 bits):
-//  0 = nada
-//  1 = escribir una palabra: registro de datos de 44 bits {dato[31:0], direccion[11:0]}
-//  2 = control: registro de datos de 1 bit, 1 = procesador detenido (en reinicio)
-//  3 = estado: 34 bits {leds[9:0], hex[23:0]} para ver desde la PC que el programa corre
-//En todos entra y sale primero el bit menos significativo.
+// cargador JTAG
 module jtag_loader (
-	input clk,   //reloj del sistema
-	input rst,   //activo en bajo
-	//hacia la memoria de programa
+	input clk,
+	input rst,
+	// hacia la memoria de programa
 	output reg load_we,
 	output wire [11:0] load_addr,
 	output wire [31:0] load_data,
-	//hacia el procesador
+	// hacia el procesador
 	output reg halt,
-	//lo que se deja ver a la PC
+	// estado para la PC
 	input [9:0] leds,
 	input [23:0] hex
 );
@@ -37,10 +27,10 @@ module jtag_loader (
 
 	localparam IR_WRITE = 2'd1, IR_CTRL = 2'd2, IR_STATE = 2'd3;
 
-	//================ lado del JTAG (tck) ================
-	reg [43:0] word;      //{dato, direccion}
-	reg halt_t;           //orden de detener
-	reg write_t;          //cambia de valor en cada palabra nueva
+	// lado del JTAG
+	reg [43:0] word;
+	reg halt_t;
+	reg write_t;
 	reg [33:0] state;
 	reg bypass;
 
@@ -84,9 +74,7 @@ module jtag_loader (
 	             (v_ir == IR_CTRL) ? halt_t :
 	             (v_ir == IR_STATE) ? state[0] : bypass;
 
-	//================ lado del sistema (clk) ================
-	//La palabra ya esta quieta cuando write_t cambia; se pasa el cambio por tres
-	//flip-flops y se escribe un ciclo.
+	// lado del sistema
 	reg [2:0] write_ff;
 	reg [1:0] halt_ff;
 
@@ -110,7 +98,7 @@ module jtag_loader (
 		end
 	end
 
-	//en simulacion los registros del lado del JTAG empiezan en 0
+	// valores iniciales
 	initial begin
 		word = 44'd0;
 		halt_t = 1'b0;

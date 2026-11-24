@@ -1,20 +1,3 @@
-"""Video de la camara OV7670 en vivo dentro de la terminal (PowerShell o cmd).
-
-La FPGA (prueba_camara) manda cada cuadro por el cable USB-Blaster (JTAG
-virtual); quartus_stp lo baja con flujo_camara.tcl y este programa lo dibuja
-con medios bloques de color: cada caracter son dos pixeles, uno arriba del otro.
-
-Uso (desde fpga/prueba_camara):
-    python ver_camara.py                 video en vivo, se ajusta al tamano de la ventana
-    python ver_camara.py --completa      manda 320 x 240 (mas detalle, menos cuadros por segundo)
-    python ver_camara.py --foto f.png    guarda un cuadro completo (320 x 240) y termina
-    python ver_camara.py --girar 180     gira la imagen (0, 90, 180, 270)
-    python ver_camara.py --espejo        la voltea de izquierda a derecha
-    python ver_camara.py --sin-mejora    sin ajuste automatico de contraste
-
-Ctrl+C para salir. Con la letra mas chica (Ctrl + rueda del raton) caben mas
-caracteres y la imagen sale con mas detalle.
-"""
 import argparse
 import os
 import shutil
@@ -30,20 +13,17 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 
 
 def activar_ansi():
-    """Pide a la consola de Windows que entienda las secuencias de color (ANSI)."""
     if os.name != "nt":
         return
     import ctypes
     k = ctypes.windll.kernel32
-    h = k.GetStdHandle(-11)                      # salida estandar
+    h = k.GetStdHandle(-11)
     modo = ctypes.c_uint32()
     if k.GetConsoleMode(h, ctypes.byref(modo)):
-        k.SetConsoleMode(h, modo.value | 0x0004)  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+        k.SetConsoleMode(h, modo.value | 0x0004)
 
 
 def cuadros(n, modo, periodo=0, procesos=None):
-    """Genera (numero, ms, imagen uint8) leyendo la salida de quartus_stp.
-    Si se da la lista "procesos", ahi se anota el proceso para poder cortarlo desde fuera."""
     orden = [QUARTUS_STP, "-t", "flujo_camara.tcl", str(n), str(modo), str(periodo)]
     proc = subprocess.Popen(orden, cwd=AQUI, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             text=True, bufsize=1,
@@ -70,7 +50,6 @@ def cuadros(n, modo, periodo=0, procesos=None):
 
 
 def mejorar(img):
-    """Estira el contraste entre los percentiles 1 y 99 (como el ajuste de un monitor)."""
     bajo, alto = np.percentile(img, (1, 99))
     if alto - bajo < 16:
         return img
@@ -85,16 +64,13 @@ def acomodar(img, girar, espejo):
     return np.ascontiguousarray(img)
 
 
-# tabla de las 256 cadenas "r;g;b" de gris, para no formatear numeros en cada pixel
 GRIS = [f"{g};{g};{g}" for g in range(256)]
 
 
 def dibujar(img, texto):
-    """Dibuja la imagen con medios bloques; devuelve la cadena completa del cuadro."""
     columnas, filas = shutil.get_terminal_size((120, 40))
-    filas -= 2                                   # un renglon para el texto y uno libre
+    filas -= 2
     alto_img, ancho_img = img.shape
-    # cada caracter mide el doble de alto que de ancho: 1 columna x 2 pixeles
     escala = min(columnas / ancho_img, filas * 2 / alto_img)
     w = max(16, int(ancho_img * escala))
     h = max(8, int(alto_img * escala)) // 2 * 2
@@ -127,11 +103,10 @@ def main():
 
     activar_ansi()
     sys.stdout.reconfigure(encoding="utf-8")
-    sys.stdout.write("\x1b[2J\x1b[?25l")         # limpia y esconde el cursor
+    sys.stdout.write("\x1b[2J\x1b[?25l")
     anterior = time.time()
     fps = 0.0
     try:
-        # la camara entrega un cuadro cada 128 ms: no tiene caso pedir mas seguido
         for num, ms, img in cuadros(0, 1 if a.completa else 2, 125):
             ahora = time.time()
             ritmo = 1 / max(ahora - anterior, 1e-3)

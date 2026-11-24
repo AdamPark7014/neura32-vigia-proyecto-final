@@ -1,5 +1,4 @@
-//Registro de entrada y salida en paralelo (el de la clase)
-//Se usa para el PC, el registro de instruccion y los registros internos del procesador.
+// registro
 module pipo_register #(
 	parameter nbits = 32, parameter initial1 = 32'h00000000)
 	(input clk, rst, en,

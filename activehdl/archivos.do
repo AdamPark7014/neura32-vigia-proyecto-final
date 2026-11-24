@@ -1,9 +1,6 @@
-# Agrega los archivos de NEURA-32 Vigia al diseno activo (lo llama agregar_diseno.do).
-# El lenguaje de macros de Active-HDL no acepta foreach: un addfile por archivo.
-
 set PROY "C:/Users/adpoz/OneDrive/Documentos/Universidad/2026-Semestre-5/09-Lab-Arquitecturas-LA116/Entregas/Proyecto-Final-NEURA32"
 
-# --- el procesador: los bloques de la clase, ampliados ---
+# el procesador
 addfile "$PROY/hdl/pipo_register.v"
 addfile "$PROY/hdl/rom.v"
 addfile "$PROY/hdl/ram.v"
@@ -13,11 +10,11 @@ addfile "$PROY/hdl/alu_riscv.v"
 addfile "$PROY/hdl/divider.v"
 addfile "$PROY/hdl/uc_simple.v"
 addfile "$PROY/hdl/riscv_neura.v"
-# --- perifericos, cargador y sistema completo ---
+# perifericos
 addfile "$PROY/hdl/perifericos.v"
 addfile "$PROY/hdl/jtag_loader.v"
 addfile "$PROY/hdl/soc_neura32.v"
-# --- vision ---
+# vision
 addfile "$PROY/hdl/vision/memoria_doble_puerto.v"
 addfile "$PROY/hdl/vision/ram_dp.v"
 addfile "$PROY/hdl/vision/ram_2clk.v"
@@ -29,7 +26,7 @@ addfile "$PROY/hdl/vision/vga_draw.v"
 addfile "$PROY/hdl/vision/pc_view.v"
 addfile "$PROY/hdl/vision/registros_vision.v"
 addfile "$PROY/hdl/vision/vision_vigia.v"
-# --- programas (ensamblador en Verilog) ---
+# programas
 addfile "$PROY/prog/codificador_riscv.vh"
 addfile "$PROY/prog/pesos_red.vh"
 addfile "$PROY/prog/pesos_vigia.vh"
@@ -39,7 +36,7 @@ addfile "$PROY/prog/programa_prueba_isa.vh"
 addfile "$PROY/prog/programa_demo.vh"
 addfile "$PROY/prog/programa_vigia.vh"
 addfile "$PROY/prog/generador_programa.v"
-# --- bancos de prueba y modelos ---
+# bancos de prueba y modelos
 addfile "$PROY/tb/sim_jtag.v"
 addfile "$PROY/tb/modelo_ov7670.v"
 addfile "$PROY/tb/generar_rom.v"

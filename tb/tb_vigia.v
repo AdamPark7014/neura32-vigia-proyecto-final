@@ -1,33 +1,13 @@
 `timescale 1ns / 1ps
-// ============================================================
-// TESTBENCH DEL SISTEMA COMPLETO — NEURA-32 VIGIA (PROGRAMA = 3)
-//
-// SoC + modelo de la camara OV7670. La camara simulada entrega 160x120
-// (en la placa son 320x240; la deteccion es de 80x60 en ambos casos).
-// Guion:
-//   1. arranque: el programa configura la camara por SCCB, la identifica,
-//      mide la red, hace la autoprueba con tres siluetas guardadas (cuerpo
-//      completo, medio cuerpo y busto) y aprende el fondo vacio
-//   2. mueven la camara (todo el fondo cambia): NO debe haber alarma; el
-//      programa lo nota, vuelve a aprender el fondo y sigue vigilando
-//   3. un perro cruza de derecha a izquierda por la zona: NO debe haber
-//      alarma ni conteo (la red debe decir "objeto o animal")
-//   4. una persona entra por la izquierda, cruza la linea en el sentido
-//      prohibido y se queda en la zona: entrada = 1, alarma por cruce y
-//      por zona
-// Comprueba ademas la red del programa contra un modelo de referencia en
-// Verilog y guarda tb/salidas/*.ppm|pgm (monitor VGA, mascara, video).
-// Al final imprime: PRUEBAS: n  ERRORES: 0
-// ============================================================
 module tb_vigia;
 
     reg clk50 = 1'b0;
     reg clk = 1'b0;
     reg rst = 1'b1;
-    always #10 clk50 = ~clk50;                 // 50 MHz, el reloj de la placa
-    always @(posedge clk50) clk <= ~clk;       // 25 MHz, dividido entre 2 como en top_vigia
+    always #10 clk50 = ~clk50;
+    always @(posedge clk50) clk <= ~clk;
 
-    reg  [9:0]  sw  = 10'b00_0000_1000;        // SW3 = ver la silueta en el monitor
+    reg  [9:0]  sw  = 10'b00_0000_1000;
     reg  [1:0]  key = 2'b11;
     wire [9:0]  leds;
     wire [23:0] hex;
@@ -39,7 +19,7 @@ module tb_vigia;
     wire        cam_pclk, cam_href, cam_vsync, cam_sioc, cam_reset_n, cam_pwdn;
     wire [7:0]  cam_d;
     wire        cam_siod;
-    pullup (cam_siod);                         // resistencia de 4.7 k a 3.3 V
+    pullup (cam_siod);
 
     wire [3:0]  vga_r, vga_g, vga_b;
     wire        vga_hs, vga_vs;
@@ -61,18 +41,14 @@ module tb_vigia;
         .ciclos(ciclos), .instret(instret)
     );
 
-    // sensor de 320 x 240 que el programa pone en modo reducido: entrega 160 x 120.
-    // El borrado vertical se alarga para que un cuadro dure 400 000 ciclos: la mitad de lo
-    // que dura en la placa (800 000 ciclos a 31 cuadros por segundo), para no alargar la prueba.
+    // sensor simulado
     modelo_ov7670 #(.ANCHO(320), .ALTO(240), .V_BLANCO(419)) camara (
         .xclk(clk), .resetb(cam_reset_n), .pwdn(cam_pwdn),
         .pclk(cam_pclk), .href(cam_href), .vsync(cam_vsync), .d(cam_d),
         .sioc(cam_sioc), .siod(cam_siod)
     );
 
-    // el programa sale de fpga/programa_vigia.txt (lo escribe tb/generar_rom.v)
-
-    // ---- variables del programa en la RAM ----
+    // variables en RAM
     localparam VR_PID = 8, VR_VER = 12, VR_CUADRO = 16, VR_ENTRADAS = 20, VR_SALIDAS = 24;
     localparam VR_ALARMA = 28, VR_NBLOBS = 32, VR_EN_ZONA = 36, VR_BENCH_X = 44, VR_BENCH_R = 48;
     localparam VR_NO_PERSONA = 72, VR_PERSONAS = 76, VR_EVENTOS = 80, VR_CLASE_PRUEBA = 84;
@@ -84,13 +60,13 @@ module tb_vigia;
         ram = dut.cpu.palabra(desp / 4);
     endfunction
 
-    // ---- consola ----
+    // consola
     always @(posedge clk) if (consola_we) begin
         $write("%c", consola_char);
         if (consola_char == 8'h0A) $fflush;
     end
 
-    // ---- avance: una linea por cada mascara que procesa el programa ----
+    // avance
     integer ultimo_cuadro = 0;
     always @(posedge clk) if (!rst && dut.cpu.palabra(VR_CUADRO / 4) != ultimo_cuadro) begin
         ultimo_cuadro = dut.cpu.palabra(VR_CUADRO / 4);
@@ -105,7 +81,7 @@ module tb_vigia;
         if (!rst && instr_ilegal) ilegales = ilegales + 1;
     end
 
-    // ---- modelo de referencia de la red binaria ----
+    // modelo de referencia
     `include "pesos_vigia.vh"
     integer ref_punt [0:2];
 
@@ -118,7 +94,7 @@ module tb_vigia;
         end
     endfunction
 
-    task red_referencia;                       // sobre el recorte que dejo el programa en la RAM
+    task red_referencia;
         integer j, w, k, cuenta;
         reg [63:0] a;
         begin
@@ -136,7 +112,7 @@ module tb_vigia;
         end
     endtask
 
-    // ---- captura de la pantalla VGA ----
+    // captura de la pantalla VGA
     reg [9:0]  h1, h2, h3, v1, v2, v3;
     reg        a1, a2, a3;
     reg [11:0] pantalla [0:640*480-1];
@@ -145,7 +121,7 @@ module tb_vigia;
     always @(posedge clk) begin
         h1 <= dut.vision.h; v1 <= dut.vision.v; a1 <= dut.vision.activo;
         h2 <= h1;           v2 <= v1;           a2 <= a1;
-        h3 <= h2;           v3 <= v2;           a3 <= a2;          // vga_draw tarda 3 ciclos
+        h3 <= h2;           v3 <= v2;           a3 <= a2;
     end
     always @(posedge clk) begin
         #1;
@@ -179,7 +155,7 @@ module tb_vigia;
         end
     endtask
 
-    // ---- comprobaciones ----
+    // comprobaciones
     integer pruebas = 0, errores = 0;
     task revisar;
         input condicion;
@@ -196,7 +172,7 @@ module tb_vigia;
     integer k2;
 
     initial begin
-        #3.0e9;                                // 3 s de simulacion como limite
+        #3.0e9;
         $display("TIEMPO AGOTADO");
         $finish;
     end
@@ -210,13 +186,13 @@ module tb_vigia;
         repeat (5) @(posedge clk);
         rst = 1'b0;
 
-        // ---------------- 1. arranque y aprendizaje del fondo ----------------
+        // arranque y aprendizaje del fondo
         while (ram(VR_CUADRO) < 6) @(posedge clk);
         $display("[%t] arranque listo: cuadro %0d, %0d escrituras y %0d lecturas SCCB",
                  $time, ram(VR_CUADRO), camara.escrituras, camara.lecturas);
 
-        // ---------------- 2. mueven la camara ----------------
-        @(posedge cam_vsync);                  // el cambio entra con un cuadro completo
+        // mueven la camara
+        @(posedge cam_vsync);
         camara.movida = 1'b1;
         $display("[%t] escena: CAMARA MOVIDA (cambia todo el fondo)", $time);
         repeat (10) @(posedge cam_vsync);
@@ -227,7 +203,7 @@ module tb_vigia;
         $display("[%t] camara movida: fondo aprendido %0d vez, %0d celdas de silueta, %0d eventos",
                  $time, reaprendidos_mov, fg_mov, eventos_mov);
 
-        // ---------------- 3. un perro cruza la zona ----------------
+        // un perro cruza la zona
         camara.escena = 2'd1; camara.t_escena = 0;
         $display("[%t] escena: PERRO cruzando de derecha a izquierda", $time);
         repeat (15) @(posedge cam_vsync);
@@ -238,13 +214,13 @@ module tb_vigia;
         camara.escena = 2'd0;
         repeat (6) @(posedge cam_vsync);
 
-        // ---------------- 4. una persona entra y se queda en la zona ----------------
+        // entra una persona
         cuadro_inicio_persona = ram(VR_CUADRO);
         camara.escena = 2'd2; camara.t_escena = 0;
         $display("[%t] escena: PERSONA entrando por la izquierda", $time);
         repeat (20) @(posedge cam_vsync);
 
-        // captura de un cuadro VGA con la alarma
+        // captura VGA
         @(posedge clk);
         wait (dut.vision.h == 0 && dut.vision.v == 0);
         capturando = 1'b1;
@@ -252,7 +228,7 @@ module tb_vigia;
         guardar_imagenes;
         red_referencia;
 
-        // ---------------- resultados ----------------
+        // resultados
         $display("");
         $display("cuadros procesados=%0d  manchas persona=%0d  no persona=%0d  eventos=%0d",
                  ram(VR_CUADRO), ram(VR_PERSONAS), ram(VR_NO_PERSONA), ram(VR_EVENTOS));

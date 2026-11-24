@@ -1,5 +1,3 @@
-# La unidad de control sola (tb_uc_simple): recorrido de estados por tipo de instruccion.
-# La consola debe terminar con "PRUEBAS: 28  ERRORES: 0".
 set PROY "C:/Users/adpoz/OneDrive/Documentos/Universidad/2026-Semestre-5/09-Lab-Arquitecturas-LA116/Entregas/Proyecto-Final-NEURA32"
 cd "$PROY"
 

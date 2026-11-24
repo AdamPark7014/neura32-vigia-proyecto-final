@@ -1,16 +1,7 @@
 `timescale 1ns / 1ps
-// ============================================================
-// BANCO DE PRUEBAS: EL PROGRAMA DE LA CLASE EN NEURA-32
-// El procesador ampliado debe seguir corriendo, sin cambiarle nada, el
-// programa original de la clase (docs/base-clase/programa_ab_c.txt):
-//     00208233   add x4, x1, x2      x4 = a + b
-//     023212B3   mul x5, x4, x3      x5 = (a + b) * c
-// con a = 7, b = 5 y c = 5 cargados en x1, x2 y x3.
-// Al final imprime: PRUEBAS: n  ERRORES: 0
-// ============================================================
 module tb_programa_ab_c;
     reg clk = 1'b0;
-    reg rst = 1'b0;                       // reinicio activo en bajo, como en la clase
+    reg rst = 1'b0;
     always #10 clk = ~clk;
 
     wire [31:0] result_out;
@@ -35,7 +26,7 @@ module tb_programa_ab_c;
         end
     endtask
 
-    // nombre de la fase, para ver el recorrido de la maquina de estados
+    // nombre de la fase
     function [8*10-1:0] fase;
         input [3:0] s;
         case (s)

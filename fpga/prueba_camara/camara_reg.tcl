@@ -1,10 +1,3 @@
-# Escribe o lee registros de la camara OV7670 en vivo (sin recompilar).
-# Uso (desde fpga/prueba_camara), todo en hexadecimal:
-#   quartus_stp -t camara_reg.tcl w 17 13 18 01      escribe 0x17 = 0x13 y 0x18 = 0x01
-#   quartus_stp -t camara_reg.tcl r 00 10 07         lee esos registros
-#   quartus_stp -t camara_reg.tcl a ajustes.txt      aplica un archivo: "RR VV" por renglon (// comenta)
-# La fuente de la sonda son 21 bits:
-#   [0] reinicio  [2:1] fase de XCLK  [10:3] valor  [18:11] registro  [19] escribir  [20] leer
 set FASE 2
 
 set hw  [lindex [get_hardware_names] 0]

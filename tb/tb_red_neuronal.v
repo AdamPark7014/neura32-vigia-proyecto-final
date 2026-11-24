@@ -1,12 +1,4 @@
 `timescale 1ns / 1ps
-// ============================================================
-// TESTBENCH AUTOVERIFICABLE — CLASIFICADOR NEURONAL (PROGRAMA = 1)
-// Para cada patron de 3x3 (valor de SW) se reinicia el SoC, se deja
-// correr el programa hasta ecall y se compara la clase y las 8
-// puntuaciones con un modelo de referencia escrito en Verilog puro
-// (misma red cuantizada, sin pasar por el procesador).
-// Tambien se comprueban LEDs, HEX y el texto de la consola.
-// ============================================================
 module tb_red_neuronal;
 
     reg clk = 1'b0;
@@ -37,10 +29,8 @@ module tb_red_neuronal;
         .vga_r(), .vga_g(), .vga_b(), .vga_hs(), .vga_vs(),
         .ciclos(ciclos), .instret(instret)
     );
-    // el programa sale de fpga/programa_red.txt (lo escribe tb/generar_rom.v)
 
-
-    // ---- consola ----
+    // consola
     reg [8*16-1:0] texto;
     always @(posedge clk)
         if (consola_we) begin
@@ -51,7 +41,7 @@ module tb_red_neuronal;
     integer ilegales = 0;
     always @(posedge clk) if (instr_ilegal) ilegales = ilegales + 1;
 
-    // ---- modelo de referencia (misma red, enteros, en Verilog) ----
+    // modelo de referencia
     `include "pesos_red.vh"
 
     integer ref_punt [0:7];
@@ -91,7 +81,7 @@ module tb_red_neuronal;
         endcase
     endfunction
 
-    // ---- casos de prueba: las 8 plantillas y variantes con un pixel cambiado ----
+    // casos de prueba
     localparam N_CASOS = 16;
     reg [8:0] caso [0:N_CASOS-1];
     integer c, k, errores = 0, pruebas = 0, limite, clase_hw, punt_hw, total_ciclos = 0, total_instr = 0;
@@ -100,14 +90,14 @@ module tb_red_neuronal;
         cargar_pesos;
         for (c = 0; c < 8; c = c + 1) begin
             caso[c]     = red_plantilla(c);
-            caso[c + 8] = red_plantilla(c) ^ (9'h001 << ((c * 3 + 1) % 9));   // un pixel invertido
+            caso[c + 8] = red_plantilla(c) ^ (9'h001 << ((c * 3 + 1) % 9));
         end
 
         $display("=== NEURA-32: clasificador neuronal 3x3 (9-16-8, int8) ===");
         $display("ROM: codigo hasta 0x%03h, pesos hasta 0x%03h", gen.R_W1, gen.R_fin);
 
         for (c = 0; c < N_CASOS; c = c + 1) begin
-            // reinicio con el patron en los interruptores
+            // reinicio
             rst = 1'b1; sw = {1'b0, caso[c]}; texto = 0;
             repeat (3) @(posedge clk);
             rst = 1'b0;

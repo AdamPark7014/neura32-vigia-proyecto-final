@@ -1,8 +1,4 @@
-//Memoria de programa (la ROM de la clase)
-//Las instrucciones vienen de un archivo de texto en hexadecimal, una por renglon.
-//Lo nuevo: un puerto de carga. El procesador no puede escribirla; solo el cargador de
-//programas (jtag_loader) escribe, con el procesador detenido, para ponerle otro programa
-//desde la PC sin volver a compilar.
+// ROM
 module rom #(
 	parameter addr_width = 5,
 	parameter data_width = 32,
@@ -11,13 +7,12 @@ module rom #(
 	input 					        clk,
 	input 	   [addr_width-1:0] addr,
 	output reg [data_width-1:0] data_out,
-	//cargador de programas
+	// cargador
 	input 					        load_we,
 	input 	   [addr_width-1:0] load_addr,
 	input 	   [data_width-1:0] load_data
 	);
 
-	// [31:25] funct7 | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:7] rd | [6:0] opcode
 	reg [data_width-1:0] rom_data [0:(2**addr_width-1)];
 
 	initial begin

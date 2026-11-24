@@ -1,29 +1,12 @@
-//Vista en la PC: manda el video por el cable USB-Blaster (JTAG virtual)
-//Sirve para ver la imagen en la computadora cuando no hay monitor VGA.
-//
-//El JTAG pasa unos 2 Mbit/s, asi que se manda una imagen reducida a la mitad
-//(width/2 x height/2) con 4 bits de brillo por pixel y el color de cada bloque de 2 x 2
-//(4 bits de U y 4 de V), y ademas ENTRELAZADA: en cada corrimiento sale un campo
-//(los renglones pares o los nones). Asi llegan ~25 campos por segundo.
-//
-//Hay DOS juegos de memorias (A y B): la camara escribe en uno y la PC lee el otro,
-//que guarda el ultimo cuadro completo; la imagen nunca llega partida.
-//
-//Registro de instruccion virtual (2 bits):
-//  0 = nada
-//  1 = campo de video: cabecera de 16 bits {8'hA5, 7'd0, campo}, luego el brillo
-//      (4 bits por pixel) y luego el color (8 bits por bloque), renglones del campo
-//  2 = mascara de la deteccion (1 bit por celda)
-//  3 = datos: recuadros, colores, zona, linea y contadores (meta)
-//En todos sale primero el bit menos significativo.
+// video a la PC
 module pc_view #(
 	parameter width = 320,
 	parameter height = 240,
 	parameter meta_bits = 384
 )(
-	input clk,   //25 MHz
-	input rst,   //activo en bajo
-	//pixeles que entrega cam_capture
+	input clk,
+	input rst,
+	// pixeles
 	input pix_valid,
 	input [8:0] pix_x,
 	input [7:0] pix_y,
@@ -34,36 +17,36 @@ module pc_view #(
 	input [7:0] uv_u,
 	input [7:0] uv_v,
 	input frame_done,
-	//datos que dibuja la PC
+	// datos
 	input [meta_bits-1:0] meta,
-	//lectura de la copia de la mascara (memoria de dos relojes, se lee con tck)
+	// lectura de la mascara
 	output wire tck,
 	output wire [12:0] msk_addr,
 	input msk_data,
-	output wire held   //hay un cuadro guardado en espera de la PC
+	output wire held
 );
 
-	//tamano de la imagen reducida
+	// tamano
 	localparam pw = width / 2;
 	localparam ph = height / 2;
 	localparam cw = width / 4;
 	localparam ch = height / 4;
-	localparam y_items = pw * (ph / 2);    //pixeles de brillo en un campo
-	localparam uv_items = cw * (ch / 2);   //bloques de color en un campo
+	localparam y_items = pw * (ph / 2);
+	localparam uv_items = cw * (ch / 2);
 
-	//================ lado de la camara (clk) ================
-	reg bank_wr;     //0: la camara escribe en A, 1: en B
-	reg writing;     //hay un cuadro en curso de escritura
-	reg holding;     //cuadro completo guardado, en espera de la PC
+	// lado de la camara
+	reg bank_wr;
+	reg writing;
+	reg holding;
 	assign held = holding;
 
-	//brillo: 1 de cada 2 pixeles y lineas, de 8 a 4 bits con tramado 2 x 2
+	// brillo
 	wire [8:0] px = {1'b0, pix_x[8:1]};
 	wire [7:0] py = {1'b0, pix_y[7:1]};
 	wire y_take = pix_valid & writing & ~pix_x[0] & ~pix_y[0];
 	wire [14:0] y_addr_wr = py * pw + px;
 
-	reg [3:0] dither;   //umbral segun la posicion
+	reg [3:0] dither;
 	always @(*)
 	begin
 		case({py[0], px[0]})
@@ -76,13 +59,13 @@ module pc_view #(
 	wire [8:0] lum_sum = {1'b0, pix_lum} + {5'd0, dither};
 	wire [3:0] lum4 = lum_sum[8] ? 4'hF : lum_sum[7:4];
 
-	//color: 1 de cada 2 muestras y lineas, 4 bits de U y 4 de V
+	// color
 	wire [7:0] cx = {1'b0, uv_x[7:1]};
 	wire [6:0] cy = {1'b0, uv_y[6:1]};
 	wire uv_take = uv_valid & writing & ~uv_x[0] & ~uv_y[0];
 	wire [12:0] uv_addr_wr = cy * cw + cx;
 
-	//================ memorias ================
+	// memorias
 	wire [14:0] y_ptr_addr;
 	wire [12:0] uv_ptr_addr;
 	wire [3:0] ya_q, yb_q;
@@ -101,7 +84,7 @@ module pc_view #(
 		.clk_wr(clk), .we(uv_take & bank_wr), .addr_wr(uv_addr_wr), .data_in({uv_u[7:4], uv_v[7:4]}),
 		.clk_rd(tck), .addr_rd(uv_ptr_addr), .data_out(uvb_q));
 
-	//================ lado de la PC (tck) ================
+	// lado de la PC
 	wire tdi, tdo, v_cdr, v_sdr, v_udr;
 	wire [1:0] v_ir;
 
@@ -117,16 +100,16 @@ module pc_view #(
 	localparam IR_VIDEO = 2'd1, IR_MASK = 2'd2, IR_META = 2'd3;
 	localparam PH_HEAD = 2'd0, PH_LUM = 2'd1, PH_COLOR = 2'd2;
 
-	reg reading;       //la PC esta bajando un campo
-	reg field;         //0: renglones pares, 1: nones
-	reg [1:0] bank_t;  //bank_wr visto desde tck
-	reg bank_rd;       //juego que se lee: el que NO escribe la camara
+	reg reading;
+	reg field;
+	reg [1:0] bank_t;
+	reg bank_rd;
 	reg [1:0] phase;
 	reg head_second;
-	reg [7:0] shift;   //registro de corrimiento
+	reg [7:0] shift;
 	reg [2:0] nbit, last_bit;
-	reg [14:0] y_ptr;  //siguiente pixel de brillo que se va a cargar
-	reg [12:0] uv_ptr; //siguiente bloque de color
+	reg [14:0] y_ptr;
+	reg [12:0] uv_ptr;
 	reg [8:0] y_col;
 	reg [7:0] uv_col;
 	reg [14:0] items;
@@ -137,16 +120,15 @@ module pc_view #(
 	wire [3:0] y_q = bank_rd ? yb_q : ya_q;
 	wire [7:0] uv_q = bank_rd ? uvb_q : uva_q;
 
-	//al terminar un renglon se salta el del otro campo
+	// siguiente pixel
 	wire [14:0] y_next = (y_col == pw - 1) ? y_ptr + pw + 15'd1 : y_ptr + 15'd1;
 	wire [12:0] uv_next = (uv_col == cw - 1) ? uv_ptr + cw + 13'd1 : uv_ptr + 13'd1;
 
-	//mascara: un bit por corrimiento. La salida es el registro de la propia memoria:
-	//el puntero va una celda adelante (en reposo esta en la celda 0).
+	// mascara
 	reg [12:0] msk_ptr;
 	assign msk_addr = msk_ptr;
 
-	//datos (meta)
+	// datos
 	reg [meta_bits-1:0] meta_shift;
 
 	always @(posedge tck)
@@ -158,13 +140,13 @@ module pc_view #(
 			bank_rd <= ~bank_t[1];
 		end
 
-		//---- campo de video ----
+		// campo de video
 		if((v_ir == IR_VIDEO) && v_cdr)
 		begin
 			reading <= 1'b1;
 			phase <= PH_HEAD;
 			head_second <= 1'b0;
-			shift <= {7'd0, field};   //byte bajo de la cabecera
+			shift <= {7'd0, field};
 			nbit <= 3'd0;
 			last_bit <= 3'd7;
 			y_ptr <= field ? pw : 15'd0;
@@ -184,7 +166,7 @@ module pc_view #(
 						begin
 							if(!head_second)
 							begin
-								shift <= 8'hA5;   //byte alto de la cabecera
+								shift <= 8'hA5;
 								head_second <= 1'b1;
 							end else
 							begin
@@ -230,10 +212,10 @@ module pc_view #(
 		if(reading && (v_udr || (v_ir != IR_VIDEO)))
 		begin
 			reading <= 1'b0;
-			field <= ~field;   //el siguiente corrimiento manda el otro campo
+			field <= ~field;
 		end
 
-		//---- mascara ----
+		// mascara
 		if(v_ir == IR_MASK)
 		begin
 			if(v_cdr)
@@ -251,7 +233,7 @@ module pc_view #(
 			msk_ptr <= 13'd0;
 		end
 
-		//---- datos ----
+		// datos
 		if(v_ir == IR_META)
 		begin
 			if(v_cdr)
@@ -267,7 +249,7 @@ module pc_view #(
 		end
 	end
 
-	//los registros del lado del JTAG no tienen reinicio: en la FPGA arrancan en 0
+	// valores iniciales
 	initial begin
 		reading = 1'b0;
 		field = 1'b0;
@@ -280,12 +262,7 @@ module pc_view #(
 	             (v_ir == IR_MASK) ? msk_data :
 	             (v_ir == IR_META) ? meta_shift[0] : bypass;
 
-	//================ cambio de memorias (clk) ================
-	//Al terminar un cuadro (frame_done):
-	//  si la PC no esta leyendo se cambian las memorias: el cuadro recien terminado queda
-	//  para la PC y la camara sigue en la otra;
-	//  si la PC esta leyendo, el cuadro se guarda (no se escribe mas) y el cambio se hace
-	//  en cuanto la PC termina; la camara vuelve a escribir al empezar el siguiente cuadro.
+	// cambio de memorias
 	reg [1:0] reading_ff;
 
 	always @(posedge clk or negedge rst)

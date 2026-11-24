@@ -1,14 +1,6 @@
 `timescale 1ns / 1ps
-// ============================================================
-// MODELOS DE SIMULACION de las megafunciones de Quartus que usan la vista
-// en la PC y el cargador de programas (no son hardware).
-// sld_virtual_jtag trae tareas con las que el banco de pruebas hace lo
-// mismo que quartus_stp desde la PC:
-//   poner_ir(valor)     carga el registro de instruccion virtual
-//   correr_dr(n)        corre n bits del registro de datos; lo que sale queda en datos[]
-//   escribir_dr(n, v)   corre n bits metiendo el valor v (primero el bit 0)
-// TCK va a 6 MHz, como el USB-Blaster.
-// ============================================================
+
+// JTAG simulado
 module sld_virtual_jtag #(
     parameter sld_auto_instance_index = "NO",
     parameter sld_instance_index = 0,
@@ -51,18 +43,18 @@ module sld_virtual_jtag #(
         input integer n;
         integer i;
         begin
-            pulso;                                   // Select-DR
-            pulso;                                   // entra a Capture-DR
+            pulso;
+            pulso;
             virtual_state_cdr = 1; pulso; virtual_state_cdr = 0;
             virtual_state_sdr = 1;
             for (i = 0; i < n; i = i + 1) begin
-                datos[i] = tdo;                      // la PC lee TDO antes del flanco que corre
+                datos[i] = tdo;
                 pulso;
             end
             virtual_state_sdr = 0;
             n_datos = n;
             virtual_state_udr = 1; pulso; virtual_state_udr = 0;
-            pulso;                                   // Run-Test/Idle
+            pulso;
         end
     endtask
 
@@ -87,7 +79,7 @@ module sld_virtual_jtag #(
     endtask
 endmodule
 
-// La sonda de fuentes y pruebas (solo se usa en la prueba de la camara)
+// sonda simulada
 module altsource_probe #(
     parameter sld_auto_instance_index = "NO",
     parameter sld_instance_index = 0,

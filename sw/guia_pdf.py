@@ -1,8 +1,3 @@
-"""
-Genera docs/Guia-Conexion-NEURA32-Vigia.pdf: cableado de la OV7670 a la DE10-Lite,
-pasos de arranque con lo que debe indicar cada uno, controles y ajustes.
-Uso:  python sw/guia_pdf.py
-"""
 import os
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -14,7 +9,7 @@ from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, Tab
 raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 salida = os.path.join(raiz, "docs", "Guia-Conexion-NEURA32-Vigia.pdf")
 
-# ---------------- colores por grupo de senales ----------------
+# colores por grupo de senales
 C_PODER = colors.HexColor("#D93025")
 C_TIERRA = colors.HexColor("#202124")
 C_SCCB = colors.HexColor("#8E44AD")
@@ -24,7 +19,6 @@ C_DATOS = colors.HexColor("#1A73E8")
 C_CTRL = colors.HexColor("#16A085")
 C_LIBRE = colors.HexColor("#DADCE0")
 
-# senal de la camara -> (pin JP1, GPIO, color)
 CABLES = [
     ("3V3", 29, "3.3 V", C_PODER), ("GND", 30, "GND", C_TIERRA),
     ("SIOC (SCL)", 1, "GPIO[0]", C_SCCB), ("SIOD (SDA)", 2, "GPIO[1]", C_SCCB),
@@ -51,7 +45,7 @@ AVISO = ParagraphStyle("aviso", parent=TXT, textColor=colors.HexColor("#B3261E")
 
 
 class Conectores(Flowable):
-    """Dibujo del conector JP1 (2 x 20) y del modulo OV7670 (2 x 9) con colores por senal."""
+    # dibujo del conector JP1
     def __init__(self, ancho):
         super().__init__()
         self.ancho, self.alto = ancho, 152 * mm
@@ -66,7 +60,7 @@ class Conectores(Flowable):
     def draw(self):
         c = self.canv
         paso = 5.6 * mm
-        # ---------------- JP1 ----------------
+        # JP1
         x0, ytop = 38 * mm, self.alto - 14 * mm
         c.setFont("Helvetica-Bold", 10); c.setFillColor(colors.black)
         c.drawCentredString(x0 + paso / 2, self.alto - 6 * mm, "DE10-Lite: conector GPIO JP1")
@@ -98,7 +92,7 @@ class Conectores(Flowable):
                         c.drawString(x + 4 * mm, y - 2.3, senal)
         c.setFont("Helvetica-Oblique", 7)
         c.drawCentredString(x0 + paso / 2, ytop - 20 * paso - 3 * mm, "pin 1 = esquina marcada del conector")
-        # ---------------- OV7670 ----------------
+        # OV7670
         mx, mtop = 132 * mm, self.alto - 24 * mm
         c.setFont("Helvetica-Bold", 10)
         c.drawCentredString(mx + paso / 2, self.alto - 6 * mm, "Modulo OV7670 (18 pines, sin FIFO)")
@@ -131,7 +125,7 @@ class Conectores(Flowable):
         base = mtop - 9 * paso - 36 * mm
         c.drawCentredString(mx + paso / 2, base, "El numero junto a cada senal es el pin de JP1 al que va.")
         c.drawCentredString(mx + paso / 2, base - 4 * mm, "Guiarse por las letras impresas en el modulo, no por la posicion.")
-        # ---------------- leyenda ----------------
+        # leyenda
         ly = 6 * mm
         items = [("3.3 V", C_PODER), ("GND", C_TIERRA), ("SCCB", C_SCCB), ("sincronia", C_SINC),
                  ("relojes", C_RELOJ), ("datos D7..D0", C_DATOS), ("reset / apagado", C_CTRL)]
@@ -175,7 +169,7 @@ doc = SimpleDocTemplate(salida, pagesize=letter, leftMargin=18 * mm, rightMargin
 ancho = letter[0] - 36 * mm
 h = []
 
-# ================= pagina 1 =================
+# pagina 1
 h.append(Paragraph("NEURA-32 Vigía: conexión y prueba en placa", TIT))
 h.append(Paragraph("DE10-Lite (MAX 10 10M50DAF484C7G) + cámara OV7670 + monitor VGA", SUB))
 h.append(Paragraph("Antes de conectar", H1))
@@ -189,7 +183,7 @@ h.append(Spacer(1, 3 * mm))
 h.append(Conectores(ancho))
 h.append(PageBreak())
 
-# ================= pagina 2 =================
+# pagina 2
 h.append(Paragraph("Cableado pin por pin", H1))
 filas = [["Señal de la cámara", "Pin de JP1", "Señal en la FPGA", "Para qué sirve"]]
 uso = {"3V3": "alimentación", "GND": "tierra común", "SIOC (SCL)": "reloj del bus de configuración SCCB",
@@ -233,7 +227,7 @@ pasos = [["Paso", "Qué hacer", "Qué debe verse", "Si no se ve"],
           "Ver «Ajustes». Si la mancha sale <b>gris</b>, la red la clasificó como «no persona»."]]
 h.append(tabla(pasos, [13 * mm, 33 * mm, 62 * mm, ancho - 108 * mm]))
 
-# ================= pagina 3 =================
+# pagina 3
 h.append(Paragraph("Ayudas de diagnóstico", H1))
 diag = [["Indicador", "Qué significa"],
         ["SW8 arriba: barras de color", "el monitor y la salida VGA funcionan (no depende de la cámara ni del procesador)"],

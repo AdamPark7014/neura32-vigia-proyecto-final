@@ -1,5 +1,3 @@
-# NEURA-32 Vigia en la DE10-Lite (MAX 10, 10M50DAF484C7G)
-# Mismo esquema que la practica de ROM (Entregas/rom.v/fpga/rom_top.qsf)
 set_global_assignment -name FAMILY "MAX 10"
 set_global_assignment -name DEVICE 10M50DAF484C7G
 set_global_assignment -name TOP_LEVEL_ENTITY top_vigia
@@ -8,7 +6,7 @@ set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
 set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
 set_global_assignment -name RESERVE_ALL_UNUSED_PINS_WEAK_PULLUP "AS INPUT TRI-STATED"
-# Las memorias se inicializan (ROM con programa_vigia.hex): modo de configuracion con ERAM
+# memorias
 set_global_assignment -name INTERNAL_FLASH_UPDATE_MODE "SINGLE IMAGE WITH ERAM"
 set_global_assignment -name SDC_FILE vigia.sdc
 set_global_assignment -name VERILOG_FILE top_vigia.v
@@ -35,11 +33,9 @@ set_global_assignment -name VERILOG_FILE ../hdl/vision/vga_draw.v
 set_global_assignment -name VERILOG_FILE ../hdl/vision/pc_view.v
 set_global_assignment -name VERILOG_FILE ../hdl/vision/registros_vision.v
 set_global_assignment -name VERILOG_FILE ../hdl/vision/vision_vigia.v
-# SIOC y SIOD de la camara: pull-up interna ademas de las de 4.7 k
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[0]
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to GPIO[1]
-# Pines de la DE10-Lite: SW, LEDR, HEX y reloj copiados de la practica de ROM (probados en la placa);
-# KEY, VGA y GPIO de las tablas 3-3, 3-11 y 3-7 del DE10-Lite User Manual.
+# pines de la DE10-Lite
 set_location_assignment PIN_V10 -to GPIO[0]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to GPIO[0]
 set_location_assignment PIN_W5 -to GPIO[10]

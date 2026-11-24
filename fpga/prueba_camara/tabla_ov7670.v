@@ -1,12 +1,5 @@
 `timescale 1ns / 1ps
-// ============================================================
-// TABLA DE CONFIGURACION DE LA OV7670 (prueba de la camara)
-// Cada renglon es {tipo, registro, valor}:
-//   tipo 0 = esperar "valor" milisegundos     tipo 1 = escribir el registro
-//   tipo 2 = leer el registro (PID / VER)     tipo 3 = fin de la tabla
-// Los valores se afinan en vivo desde la PC (camara_reg.tcl con
-// ajustes_ov7670.txt) y luego generar_tabla.py los anota aqui.
-// ============================================================
+// registros OV7670
 module tabla_ov7670 (
     input  wire [7:0]  indice,
     output reg  [17:0] comando
@@ -15,32 +8,32 @@ module tabla_ov7670 (
 
     always @(*) begin
         case (indice)
-            8'd0:   comando = {C_ESPERA,  8'd0,  8'd20};   // RESET# en 0 durante 20 ms
-            8'd1:   comando = {C_ESPERA,  8'd0,  8'd50};   // RESET# en 1 y 50 ms de arranque
-            8'd2:   comando = {C_ESCRIBE, 8'h12, 8'h80};   // COM7: reinicio de registros
+            8'd0:   comando = {C_ESPERA,  8'd0,  8'd20};
+            8'd1:   comando = {C_ESPERA,  8'd0,  8'd50};
+            8'd2:   comando = {C_ESCRIBE, 8'h12, 8'h80};
             8'd3:   comando = {C_ESPERA,  8'd0,  8'd20};
-            8'd4:   comando = {C_LEE,     8'h0A, 8'd0};   // PID
-            8'd5:   comando = {C_LEE,     8'h0B, 8'd1};   // VER
-            8'd6:   comando = {C_ESCRIBE, 8'h11, 8'h01};   // CLKRC: PCLK = XCLK / (2 x 2) = 6.25 MHz (medido en la placa)
-            8'd7:   comando = {C_ESCRIBE, 8'h17, 8'h13};   // HSTART
-            8'd8:   comando = {C_ESCRIBE, 8'h18, 8'h01};   // HSTOP
-            8'd9:   comando = {C_ESCRIBE, 8'h32, 8'hB6};   // HREF: bits bajos de inicio y fin
-            8'd10:  comando = {C_ESCRIBE, 8'h19, 8'h02};   // VSTRT
-            8'd11:  comando = {C_ESCRIBE, 8'h1A, 8'h7A};   // VSTOP
-            8'd12:  comando = {C_ESCRIBE, 8'h03, 8'h0A};   // VREF
-            8'd13:  comando = {C_ESCRIBE, 8'h12, 8'h00};   // COM7
-            8'd14:  comando = {C_ESCRIBE, 8'h3A, 8'h04};   // TSLB
-            8'd15:  comando = {C_ESCRIBE, 8'h8C, 8'h00};   // RGB444 apagado
-            8'd16:  comando = {C_ESCRIBE, 8'h04, 8'h00};   // COM1
-            8'd17:  comando = {C_ESCRIBE, 8'h40, 8'hC0};   // COM15: salida 00..FF
-            8'd18:  comando = {C_ESCRIBE, 8'h0C, 8'h00};   // COM3
-            8'd19:  comando = {C_ESCRIBE, 8'h3E, 8'h00};   // COM14
-            8'd20:  comando = {C_ESCRIBE, 8'h70, 8'h3A};   // SCALING_XSC
-            8'd21:  comando = {C_ESCRIBE, 8'h71, 8'h35};   // SCALING_YSC
-            8'd22:  comando = {C_ESCRIBE, 8'h72, 8'h11};   // SCALING_DCWCTR
-            8'd23:  comando = {C_ESCRIBE, 8'h73, 8'hF0};   // SCALING_PCLK_DIV
-            8'd24:  comando = {C_ESCRIBE, 8'hA2, 8'h02};   // SCALING_PCLK_DELAY
-            8'd25:  comando = {C_ESCRIBE, 8'h15, 8'h00};   // COM10
+            8'd4:   comando = {C_LEE,     8'h0A, 8'd0};
+            8'd5:   comando = {C_LEE,     8'h0B, 8'd1};
+            8'd6:   comando = {C_ESCRIBE, 8'h11, 8'h01};
+            8'd7:   comando = {C_ESCRIBE, 8'h17, 8'h13};
+            8'd8:   comando = {C_ESCRIBE, 8'h18, 8'h01};
+            8'd9:   comando = {C_ESCRIBE, 8'h32, 8'hB6};
+            8'd10:  comando = {C_ESCRIBE, 8'h19, 8'h02};
+            8'd11:  comando = {C_ESCRIBE, 8'h1A, 8'h7A};
+            8'd12:  comando = {C_ESCRIBE, 8'h03, 8'h0A};
+            8'd13:  comando = {C_ESCRIBE, 8'h12, 8'h00};
+            8'd14:  comando = {C_ESCRIBE, 8'h3A, 8'h04};
+            8'd15:  comando = {C_ESCRIBE, 8'h8C, 8'h00};
+            8'd16:  comando = {C_ESCRIBE, 8'h04, 8'h00};
+            8'd17:  comando = {C_ESCRIBE, 8'h40, 8'hC0};
+            8'd18:  comando = {C_ESCRIBE, 8'h0C, 8'h00};
+            8'd19:  comando = {C_ESCRIBE, 8'h3E, 8'h00};
+            8'd20:  comando = {C_ESCRIBE, 8'h70, 8'h3A};
+            8'd21:  comando = {C_ESCRIBE, 8'h71, 8'h35};
+            8'd22:  comando = {C_ESCRIBE, 8'h72, 8'h11};
+            8'd23:  comando = {C_ESCRIBE, 8'h73, 8'hF0};
+            8'd24:  comando = {C_ESCRIBE, 8'hA2, 8'h02};
+            8'd25:  comando = {C_ESCRIBE, 8'h15, 8'h00};
             8'd26:  comando = {C_ESCRIBE, 8'h7A, 8'h20};
             8'd27:  comando = {C_ESCRIBE, 8'h7B, 8'h10};
             8'd28:  comando = {C_ESCRIBE, 8'h7C, 8'h1E};
@@ -57,29 +50,29 @@ module tabla_ov7670 (
             8'd39:  comando = {C_ESCRIBE, 8'h87, 8'hC4};
             8'd40:  comando = {C_ESCRIBE, 8'h88, 8'hD7};
             8'd41:  comando = {C_ESCRIBE, 8'h89, 8'hE8};
-            8'd42:  comando = {C_ESCRIBE, 8'h13, 8'hE0};   // COM8: AEC rapido, paso sin limite, filtro de bandas
-            8'd43:  comando = {C_ESCRIBE, 8'h00, 8'h00};   // GAIN
-            8'd44:  comando = {C_ESCRIBE, 8'h10, 8'h00};   // AECH
-            8'd45:  comando = {C_ESCRIBE, 8'h0D, 8'h40};   // COM4
-            8'd46:  comando = {C_ESCRIBE, 8'h14, 8'h38};   // COM9: tope de ganancia 16x
-            8'd47:  comando = {C_ESCRIBE, 8'hA5, 8'h05};   // BD50MAX
-            8'd48:  comando = {C_ESCRIBE, 8'hAB, 8'h07};   // BD60MAX
-            8'd49:  comando = {C_ESCRIBE, 8'h24, 8'h95};   // AEW: limite alto de brillo estable
-            8'd50:  comando = {C_ESCRIBE, 8'h25, 8'h33};   // AEB: limite bajo
-            8'd51:  comando = {C_ESCRIBE, 8'h26, 8'hE3};   // VPT: zona de ajuste rapido
-            8'd52:  comando = {C_ESCRIBE, 8'h9F, 8'h78};   // HAECC1
-            8'd53:  comando = {C_ESCRIBE, 8'hA0, 8'h68};   // HAECC2
+            8'd42:  comando = {C_ESCRIBE, 8'h13, 8'hE0};
+            8'd43:  comando = {C_ESCRIBE, 8'h00, 8'h00};
+            8'd44:  comando = {C_ESCRIBE, 8'h10, 8'h00};
+            8'd45:  comando = {C_ESCRIBE, 8'h0D, 8'h40};
+            8'd46:  comando = {C_ESCRIBE, 8'h14, 8'h38};
+            8'd47:  comando = {C_ESCRIBE, 8'hA5, 8'h05};
+            8'd48:  comando = {C_ESCRIBE, 8'hAB, 8'h07};
+            8'd49:  comando = {C_ESCRIBE, 8'h24, 8'h95};
+            8'd50:  comando = {C_ESCRIBE, 8'h25, 8'h33};
+            8'd51:  comando = {C_ESCRIBE, 8'h26, 8'hE3};
+            8'd52:  comando = {C_ESCRIBE, 8'h9F, 8'h78};
+            8'd53:  comando = {C_ESCRIBE, 8'hA0, 8'h68};
             8'd54:  comando = {C_ESCRIBE, 8'hA1, 8'h03};
-            8'd55:  comando = {C_ESCRIBE, 8'hA6, 8'hD8};   // HAECC3
-            8'd56:  comando = {C_ESCRIBE, 8'hA7, 8'hD8};   // HAECC4
-            8'd57:  comando = {C_ESCRIBE, 8'hA8, 8'hF0};   // HAECC5
-            8'd58:  comando = {C_ESCRIBE, 8'hA9, 8'h90};   // HAECC6
-            8'd59:  comando = {C_ESCRIBE, 8'hAA, 8'h94};   // HAECC7
-            8'd60:  comando = {C_ESCRIBE, 8'h13, 8'hE5};   // COM8: + AGC + AEC
-            8'd61:  comando = {C_ESCRIBE, 8'h0E, 8'h61};   // COM5
-            8'd62:  comando = {C_ESCRIBE, 8'h0F, 8'h4B};   // COM6
+            8'd55:  comando = {C_ESCRIBE, 8'hA6, 8'hD8};
+            8'd56:  comando = {C_ESCRIBE, 8'hA7, 8'hD8};
+            8'd57:  comando = {C_ESCRIBE, 8'hA8, 8'hF0};
+            8'd58:  comando = {C_ESCRIBE, 8'hA9, 8'h90};
+            8'd59:  comando = {C_ESCRIBE, 8'hAA, 8'h94};
+            8'd60:  comando = {C_ESCRIBE, 8'h13, 8'hE5};
+            8'd61:  comando = {C_ESCRIBE, 8'h0E, 8'h61};
+            8'd62:  comando = {C_ESCRIBE, 8'h0F, 8'h4B};
             8'd63:  comando = {C_ESCRIBE, 8'h16, 8'h02};
-            8'd64:  comando = {C_ESCRIBE, 8'h1E, 8'h07};   // MVFP (los bits 5 y 4 son espejo y volteo vertical)
+            8'd64:  comando = {C_ESCRIBE, 8'h1E, 8'h07};
             8'd65:  comando = {C_ESCRIBE, 8'h21, 8'h02};
             8'd66:  comando = {C_ESCRIBE, 8'h22, 8'h91};
             8'd67:  comando = {C_ESCRIBE, 8'h29, 8'h07};
@@ -88,10 +81,10 @@ module tabla_ov7670 (
             8'd70:  comando = {C_ESCRIBE, 8'h37, 8'h1D};
             8'd71:  comando = {C_ESCRIBE, 8'h38, 8'h71};
             8'd72:  comando = {C_ESCRIBE, 8'h39, 8'h2A};
-            8'd73:  comando = {C_ESCRIBE, 8'h3C, 8'h78};   // COM12
+            8'd73:  comando = {C_ESCRIBE, 8'h3C, 8'h78};
             8'd74:  comando = {C_ESCRIBE, 8'h4D, 8'h40};
             8'd75:  comando = {C_ESCRIBE, 8'h4E, 8'h20};
-            8'd76:  comando = {C_ESCRIBE, 8'h69, 8'h00};   // GFIX
+            8'd76:  comando = {C_ESCRIBE, 8'h69, 8'h00};
             8'd77:  comando = {C_ESCRIBE, 8'h74, 8'h10};
             8'd78:  comando = {C_ESCRIBE, 8'h8D, 8'h4F};
             8'd79:  comando = {C_ESCRIBE, 8'h8E, 8'h00};
@@ -122,9 +115,9 @@ module tabla_ov7670 (
             8'd104: comando = {C_ESCRIBE, 8'h6E, 8'h11};
             8'd105: comando = {C_ESCRIBE, 8'h6F, 8'h9F};
             8'd106: comando = {C_ESCRIBE, 8'h6A, 8'h40};
-            8'd107: comando = {C_ESCRIBE, 8'h01, 8'h40};   // BLUE
-            8'd108: comando = {C_ESCRIBE, 8'h02, 8'h60};   // RED
-            8'd109: comando = {C_ESCRIBE, 8'h13, 8'hE7};   // COM8: + AWB
+            8'd107: comando = {C_ESCRIBE, 8'h01, 8'h40};
+            8'd108: comando = {C_ESCRIBE, 8'h02, 8'h60};
+            8'd109: comando = {C_ESCRIBE, 8'h13, 8'hE7};
             8'd110: comando = {C_ESCRIBE, 8'h4F, 8'h80};
             8'd111: comando = {C_ESCRIBE, 8'h50, 8'h80};
             8'd112: comando = {C_ESCRIBE, 8'h51, 8'h00};
@@ -132,19 +125,19 @@ module tabla_ov7670 (
             8'd114: comando = {C_ESCRIBE, 8'h53, 8'h5E};
             8'd115: comando = {C_ESCRIBE, 8'h54, 8'h80};
             8'd116: comando = {C_ESCRIBE, 8'h58, 8'h9E};
-            8'd117: comando = {C_ESCRIBE, 8'h41, 8'h08};   // COM16: ganancia AWB
-            8'd118: comando = {C_ESCRIBE, 8'h3F, 8'h00};   // EDGE
-            8'd119: comando = {C_ESCRIBE, 8'h75, 8'h05};   // limite bajo del realce de bordes
-            8'd120: comando = {C_ESCRIBE, 8'h76, 8'hE1};   // limite alto + correccion de pixeles malos
-            8'd121: comando = {C_ESCRIBE, 8'h4C, 8'h00};   // DNSTH: umbral de reduccion de ruido
-            8'd122: comando = {C_ESCRIBE, 8'h77, 8'h01};   // desplazamiento de la reduccion de ruido
-            8'd123: comando = {C_ESCRIBE, 8'h3D, 8'hC0};   // COM13: gamma + saturacion automatica
+            8'd117: comando = {C_ESCRIBE, 8'h41, 8'h08};
+            8'd118: comando = {C_ESCRIBE, 8'h3F, 8'h00};
+            8'd119: comando = {C_ESCRIBE, 8'h75, 8'h05};
+            8'd120: comando = {C_ESCRIBE, 8'h76, 8'hE1};
+            8'd121: comando = {C_ESCRIBE, 8'h4C, 8'h00};
+            8'd122: comando = {C_ESCRIBE, 8'h77, 8'h01};
+            8'd123: comando = {C_ESCRIBE, 8'h3D, 8'hC0};
             8'd124: comando = {C_ESCRIBE, 8'h4B, 8'h09};
             8'd125: comando = {C_ESCRIBE, 8'hC9, 8'h60};
-            8'd126: comando = {C_ESCRIBE, 8'h41, 8'h38};   // COM16: realce de bordes y reduccion de ruido automaticos
-            8'd127: comando = {C_ESCRIBE, 8'h56, 8'h40};   // contraste
+            8'd126: comando = {C_ESCRIBE, 8'h41, 8'h38};
+            8'd127: comando = {C_ESCRIBE, 8'h56, 8'h40};
             8'd128: comando = {C_ESCRIBE, 8'h34, 8'h11};
-            8'd129: comando = {C_ESCRIBE, 8'h3B, 8'h12};   // COM11: deteccion automatica 50/60 Hz, exposicion menor a una banda
+            8'd129: comando = {C_ESCRIBE, 8'h3B, 8'h12};
             8'd130: comando = {C_ESCRIBE, 8'hA4, 8'h88};
             8'd131: comando = {C_ESCRIBE, 8'h96, 8'h00};
             8'd132: comando = {C_ESCRIBE, 8'h97, 8'h30};

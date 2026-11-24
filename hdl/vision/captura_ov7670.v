@@ -1,26 +1,6 @@
 `timescale 1ns / 1ps
-// ============================================================
-// CAPTURA DE LA CAMARA OV7670 (bus paralelo de 8 bits, formato YUYV)
-//
-// Todo el sistema usa un solo reloj (25 MHz). La camara se configura
-// para que PCLK sea lento (CLKRC = 3 -> 6.25 MHz) y aqui se muestrea:
-// PCLK, HREF, VSYNC y D pasan por dos flip-flops (sincronizador) y un
-// detector de flanco de subida de PCLK marca cuando hay un byte nuevo.
-// Asi no hay cruce de dominios de reloj.
-//
-// En formato YUYV los bytes llegan Y0 U0 Y1 V0 ...; solo se usa la
-// luminancia Y (escala de grises de 8 bits).
-//
-// Salidas:
-//   * video para el monitor: 1 de cada 2^VID_DECIM_LOG2 pixeles en x y
-//     en y, con 4 bits de gris (el DAC VGA de la DE10-Lite es de 4 bits)
-//   * pixel promedio de un bloque de 2^BLOQUE_LOG2 x 2^BLOQUE_LOG2
-//     pixeles: una imagen de 80 x 60 para la deteccion de movimiento
-//     (filtro de promedio = pasa-bajas que tambien quita ruido)
-//
-// Placa:      640x480, VID_DECIM_LOG2 = 1 (320x240), BLOQUE_LOG2 = 3 (8x8)
-// Simulacion: 160x120, VID_DECIM_LOG2 = 0 (160x120), BLOQUE_LOG2 = 1 (2x2)
-// ============================================================
+
+// captura OV7670
 module captura_ov7670 #(
     parameter CAM_ANCHO      = 640,
     parameter CAM_ALTO       = 480,
@@ -39,7 +19,7 @@ module captura_ov7670 #(
     output reg         vid_we,
     output reg  [16:0] vid_dir,
     output reg  [3:0]  vid_dato,
-    output reg  [7:0]  vid_lum,          // el mismo pixel con sus 8 bits de gris
+    output reg  [7:0]  vid_lum,
 
     output reg         prom_valido,
     output reg  [6:0]  prom_x,
@@ -50,11 +30,11 @@ module captura_ov7670 #(
 );
     localparam VID_ANCHO = CAM_ANCHO >> VID_DECIM_LOG2;
     localparam BLOQUE    = 1 << BLOQUE_LOG2;
-    localparam BLQ_ANCHO = CAM_ANCHO >> BLOQUE_LOG2;          // 80
+    localparam BLQ_ANCHO = CAM_ANCHO >> BLOQUE_LOG2;
     localparam [9:0] MASK_V = (1 << VID_DECIM_LOG2) - 1;
     localparam [9:0] MASK_B = BLOQUE - 1;
 
-    // ---------------- sincronizadores (2 flip-flops) ----------------
+    // sincronizadores
     reg [2:0] pclk_s, href_s, vsync_s;
     reg [7:0] d_s1, d_s2;
 
@@ -63,7 +43,7 @@ module captura_ov7670 #(
         href_s  <= {href_s[1:0],  cam_href};
         vsync_s <= {vsync_s[1:0], cam_vsync};
         d_s1    <= cam_d;
-        d_s2    <= d_s1;                  // alineado con pclk_s[1]
+        d_s2    <= d_s1;
     end
 
     wire pclk_sube  =  pclk_s[1] & ~pclk_s[2];
@@ -72,9 +52,9 @@ module captura_ov7670 #(
     wire vsync      =  vsync_s[1];
     wire vsync_sube =  vsync_s[1] & ~vsync_s[2];
 
-    // ---------------- bytes -> pixeles de luminancia ----------------
+    // bytes a pixeles
     reg [9:0] x, y;
-    reg       byte_uv;                   // 0: byte Y, 1: byte U o V
+    reg       byte_uv;
     reg       pix_valido;
     reg [7:0] pix_lum;
     reg [9:0] pix_x, pix_fila;
@@ -102,7 +82,7 @@ module captura_ov7670 #(
         end
     end
 
-    // ---------------- video para el monitor ----------------
+    // video para el monitor
     always @(posedge clk) begin
         vid_we <= 1'b0;
         if (pix_valido && ((pix_x & MASK_V) == 10'd0) && ((pix_fila & MASK_V) == 10'd0)) begin
@@ -113,10 +93,7 @@ module captura_ov7670 #(
         end
     end
 
-    // ---------------- promedio por bloques (80 x 60) ----------------
-    // suma_h acumula los BLOQUE pixeles de una fila del bloque; acc[col]
-    // acumula las BLOQUE filas. acc se lee de forma sincrona al primer
-    // pixel del bloque y se usa al ultimo (llegan >= 8 ciclos despues).
+    // promedio
     wire [9:0] bx     = pix_x    & MASK_B;
     wire [9:0] by     = pix_fila & MASK_B;
     wire [6:0] col    = pix_x    >> BLOQUE_LOG2;

@@ -1,18 +1,3 @@
-"""Video de la camara OV7670 en vivo, en una ventana tipo camara de vigilancia.
-
-La FPGA (prueba_camara) manda cada cuadro de 320 x 240 por el cable
-USB-Blaster (JTAG virtual); quartus_stp lo baja con flujo_camara.tcl y esta
-ventana lo muestra ampliado y suavizado, con ajuste de contraste.
-
-Uso (desde fpga/prueba_camara):  python ver_camara_ventana.py
-Teclas:
-    R      cambia entre imagen completa (320 x 240) y rapida (160 x 120)
-    C      ajuste de contraste encendido / apagado
-    E      espejo (izquierda <-> derecha)
-    G      gira la imagen 180 grados
-    F      guarda una foto en fotos/
-    Esc    salir
-"""
 import os
 import threading
 import time
@@ -46,11 +31,11 @@ class Visor:
         self.raiz.bind("<Key>", self.tecla)
         self.raiz.protocol("WM_DELETE_WINDOW", self.salir)
 
-        self.modo = 1                     # 1 = 320 x 240, 2 = 160 x 120
+        self.modo = 1
         self.contraste = True
         self.espejo = False
         self.girar = False
-        self.ultimo = None                # (numero, ms, imagen)
+        self.ultimo = None
         self.tiempos = []
         self.aviso = ""
         self.aviso_hasta = 0.0
@@ -58,19 +43,18 @@ class Visor:
         self.hilo_id = 0
         self.cerradura = threading.Lock()
         self.foto_tk = None
-        self.procesos = []                # procesos de quartus_stp en marcha
+        self.procesos = []
         self.letra = fuente(18)
         self.letra_chica = fuente(14)
         self.arrancar_hilo()
         self.raiz.after(30, self.pintar)
 
-    # ---------------- lectura de la FPGA en otro hilo ----------------
     def arrancar_hilo(self):
         self.hilo_id += 1
         mi_id = self.hilo_id
         modo = self.modo
 
-        self.cortar_procesos()             # solo un quartus_stp puede usar el JTAG a la vez
+        self.cortar_procesos()
 
         def trabajo():
             while self.vivo and mi_id == self.hilo_id:
@@ -82,7 +66,7 @@ class Visor:
                             self.ultimo = (num, ms, img)
                             self.tiempos.append(time.time())
                             self.tiempos = self.tiempos[-12:]
-                except Exception as e:     # se reintenta si quartus_stp se cae
+                except Exception as e:
                     self.avisar(f"reconectando: {e}")
                 time.sleep(0.5)
 
@@ -100,7 +84,7 @@ class Visor:
         self.aviso = texto
         self.aviso_hasta = time.time() + segundos
 
-    # ---------------- teclas ----------------
+    # teclas
     def tecla(self, ev):
         k = ev.keysym.lower()
         if k == "escape":
@@ -129,7 +113,7 @@ class Visor:
         self.preparar(dato[2]).save(os.path.join(AQUI, nombre))
         self.avisar("foto guardada: " + nombre)
 
-    # ---------------- imagen ----------------
+    # imagen
     def preparar(self, img):
         if self.contraste:
             bajo, alto = np.percentile(img, (1, 99.5))
@@ -164,7 +148,7 @@ class Visor:
             x0, y0 = (ancho - w) // 2, max(0, (alto - 40 - h) // 2)
             lienzo.paste(grande, (x0, y0))
 
-            # marco tipo camara de vigilancia
+            # marco
             verde = (80, 230, 120)
             L = max(24, w // 18)
             for (cx, cy, sx, sy) in ((x0, y0, 1, 1), (x0 + w - 1, y0, -1, 1),

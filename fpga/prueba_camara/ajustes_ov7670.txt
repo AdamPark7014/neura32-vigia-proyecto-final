@@ -1,22 +1,17 @@
-// Ajuste fino de la OV7670 (registro y valor en hexadecimal).
-// Se aplica en vivo con:  quartus_stp -t camara_reg.tcl a ajustes_ov7670.txt
-// Base: los valores recomendados por OmniVision que usa el controlador de Linux
-// (ov7670_default_regs), sin tocar el reloj (CLKRC y DBLV se quedan como estan).
-
-// --- ventana de imagen: quita la franja de pixeles invalidos de la izquierda ---
+// ventana de imagen
 17 13   // HSTART
 18 01   // HSTOP
-32 B6   // HREF: bits bajos de inicio y fin
+32 B6   // HREF
 19 02   // VSTRT
 1A 7A   // VSTOP
 03 0A   // VREF
 
-// --- formato: VGA, YUV 4:2:2 (Y U Y V), rango completo 00..FF ---
+// formato
 12 00   // COM7
 3A 04   // TSLB
 8C 00   // RGB444 apagado
 04 00   // COM1
-40 C0   // COM15: salida 00..FF
+40 C0   // COM15
 0C 00   // COM3
 3E 00   // COM14
 70 3A   // SCALING_XSC
@@ -26,7 +21,7 @@
 A2 02   // SCALING_PCLK_DELAY
 15 00   // COM10
 
-// --- curva gamma ---
+// curva gamma
 7A 20
 7B 10
 7C 1E
@@ -44,17 +39,17 @@ A2 02   // SCALING_PCLK_DELAY
 88 D7
 89 E8
 
-// --- exposicion y ganancia automaticas (se apagan, se ajustan y se prenden) ---
-13 E0   // COM8: AEC rapido, paso sin limite, filtro de bandas
+// exposicion y ganancia automaticas
+13 E0   // COM8
 00 00   // GAIN
 10 00   // AECH
 0D 40   // COM4
-14 38   // COM9: tope de ganancia 16x
+14 38   // COM9
 A5 05   // BD50MAX
 AB 07   // BD60MAX
-24 95   // AEW: limite alto de brillo estable
-25 33   // AEB: limite bajo
-26 E3   // VPT: zona de ajuste rapido
+24 95   // AEW
+25 33   // AEB
+26 E3   // VPT
 9F 78   // HAECC1
 A0 68   // HAECC2
 A1 03
@@ -63,13 +58,12 @@ A7 D8   // HAECC4
 A8 F0   // HAECC5
 A9 90   // HAECC6
 AA 94   // HAECC7
-13 E5   // COM8: + AGC + AEC
+13 E5   // COM8
 
-// --- valores reservados que recomienda el fabricante ---
 0E 61   // COM5
 0F 4B   // COM6
 16 02
-1E 07   // MVFP (los bits 5 y 4 son espejo y volteo vertical)
+1E 07   // MVFP
 21 02
 22 91
 29 07
@@ -96,7 +90,7 @@ B2 0E
 B3 82
 B8 0A
 
-// --- balance de blancos ---
+// balance de blancos
 43 0A
 44 F0
 45 34
@@ -116,9 +110,9 @@ B8 0A
 6A 40
 01 40   // BLUE
 02 60   // RED
-13 E7   // COM8: + AWB
+13 E7   // COM8
 
-// --- matriz de color (YUV) ---
+// matriz de color
 4F 80
 50 80
 51 00
@@ -127,22 +121,21 @@ B8 0A
 54 80
 58 9E
 
-// --- nitidez y ruido ---
-41 08   // COM16: ganancia AWB
+// nitidez y ruido
+41 08   // COM16
 3F 00   // EDGE
-75 05   // limite bajo del realce de bordes
-76 E1   // limite alto + correccion de pixeles malos
-4C 00   // DNSTH: umbral de reduccion de ruido
-77 01   // desplazamiento de la reduccion de ruido
-3D C0   // COM13: gamma + saturacion automatica
+75 05
+76 E1
+4C 00   // DNSTH
+77 01
+3D C0   // COM13
 4B 09
 C9 60
-41 38   // COM16: realce de bordes y reduccion de ruido automaticos
+41 38   // COM16
 56 40   // contraste
 
-// --- filtro de parpadeo de la luz (50 / 60 Hz automatico) ---
 34 11
-3B 12   // COM11: deteccion automatica 50/60 Hz, exposicion menor a una banda
+3B 12   // COM11
 A4 88
 96 00
 97 30
@@ -155,7 +148,7 @@ A4 88
 9E 3F
 78 04
 
-// --- registro multiplexado (valores del fabricante) ---
+// registro multiplexado
 79 01
 C8 F0
 79 0F

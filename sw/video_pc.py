@@ -1,13 +1,3 @@
-"""Decodifica el video que la FPGA manda a la PC por JTAG (modulo pc_view).
-
-Un campo trae: cabecera de 16 bits {A5, campo}, el brillo de los renglones del
-campo (4 bits por pixel) y el color de sus bloques (4 bits de U y 4 de V).
-Aqui se arma la imagen completa (dos campos entrelazados), se pasa de YUV a RGB
-y se dibujan los recuadros, los letreros y la silueta con los datos de la FPGA.
-
-Lo usan el visor en vivo (fpga/ver_vigia.py) y la revision de la simulacion:
-    python sw/video_pc.py tb/salidas       arma docs/img/pc_vista.png con lo que dejo tb_vision
-"""
 import os
 import sys
 
@@ -19,21 +9,19 @@ TEXTOS = {1: "PERSONA", 2: "INTRUSO", 3: "OBJETO"}
 
 
 def bits_a_numeros(bits, ancho):
-    """bits: arreglo de 0/1 en el orden en que salieron; grupos de 'ancho' bits, primero el menos significativo"""
+    # bits
     b = np.asarray(bits, dtype=np.uint8).reshape(-1, ancho)
     pesos = (1 << np.arange(ancho)).astype(np.uint32)
     return (b * pesos).sum(axis=1)
 
 
 def hex_a_bits(texto, n):
-    """La cadena hexadecimal de quartus_stp trae el primer bit que salio en su ultimo digito"""
     texto = texto.strip().rjust((n + 3) // 4, "0")
     valor = np.frombuffer(bytes.fromhex(texto if len(texto) % 2 == 0 else "0" + texto), dtype=np.uint8)[::-1]
     return np.unpackbits(valor, bitorder="little")[:n]
 
 
 class Video:
-    """Guarda el ultimo cuadro armado con los campos que van llegando"""
 
     def __init__(self, ancho=160, alto=120):
         self.ancho, self.alto = ancho, alto
@@ -47,14 +35,14 @@ class Video:
         return 16 + self.ancho * (self.alto // 2) * 4 + (self.ancho // 2) * (self.alto // 4) * 8
 
     def poner_campo(self, bits):
-        """Mete un campo. Devuelve cual fue (0 o 1) o None si la cabecera no cuadra."""
+        # mete un campo
         cab = int(bits_a_numeros(bits[:16], 16)[0])
         if (cab >> 8) != 0xA5:
             return None
         campo = cab & 1
         n_y = self.ancho * (self.alto // 2)
         lum = bits_a_numeros(bits[16:16 + n_y * 4], 4).reshape(self.alto // 2, self.ancho).astype(np.float32)
-        lum = lum * 17.0                                   # 4 bits -> 0..255
+        lum = lum * 17.0
         col = bits_a_numeros(bits[16 + n_y * 4:], 8).reshape(self.alto // 4, self.ancho // 2)
         u = ((col >> 4) & 15).astype(np.float32) * 16 + 8
         v = (col & 15).astype(np.float32) * 16 + 8
@@ -62,28 +50,25 @@ class Video:
         self.y[campo::2] = lum
         self.u[campo::2] = u
         self.v[campo::2] = v
-        # Desentrelazado: donde el campo cambio mucho hay movimiento, y ahi los renglones del
-        # otro campo (que son mas viejos) se rellenan con el promedio de sus dos vecinos nuevos.
-        # Donde no hay movimiento se dejan como estan y la imagen conserva todo su detalle.
+        # desentrelazado
         cambio = np.abs(lum - anterior) > 40
         self.movimiento[campo::2] = cambio
         otro = 1 - campo
         if self.campos > 0:
             if campo == 0:
-                vecino = np.vstack([lum[1:], lum[-1:]])          # renglon nuevo de abajo
+                vecino = np.vstack([lum[1:], lum[-1:]])
                 mov = cambio | np.vstack([cambio[1:], cambio[-1:]])
             else:
-                vecino = np.vstack([lum[:1], lum[:-1]])          # renglon nuevo de arriba
+                vecino = np.vstack([lum[:1], lum[:-1]])
                 mov = cambio | np.vstack([cambio[:1], cambio[:-1]])
             self.y[otro::2] = np.where(mov, (lum + vecino) / 2, self.y[otro::2])
         self.campos += 1
         return campo
 
     def imagen(self, escala=4, suavizar=True):
-        """Imagen RGB ampliada (PIL)"""
+        # imagen RGB ampliada
         y = self.y
         if suavizar:
-            # el brillo viene tramado a 4 bits: un filtro corto recupera los tonos intermedios
             p = np.pad(y, 1, mode="edge")
             y = (p[1:-1, 1:-1] * 4 + p[:-2, 1:-1] + p[2:, 1:-1] + p[1:-1, :-2] + p[1:-1, 2:]) / 8
         u = np.asarray(Image.fromarray(self.u).resize((self.ancho, self.alto), Image.BILINEAR)) - 128
@@ -97,7 +82,7 @@ class Video:
 
 
 def leer_datos(bits):
-    """Los 384 bits de 'meta' (ver vision_vigia.v)"""
+    # datos
     def campo(lo, n):
         return int(bits_a_numeros(bits[lo:lo + n], n)[0])
     cajas = []
@@ -106,7 +91,7 @@ def leer_datos(bits):
         cajas.append((w & 255, (w >> 8) & 255, (w >> 16) & 255, (w >> 24) & 255, campo(256 + 2 * k, 2)))
     z = campo(272, 32)
     return {
-        "cajas": cajas,                                    # (x0, y0, x1, y1, color) en celdas de 80 x 60
+        "cajas": cajas,
         "zona": (z & 255, (z >> 8) & 255, (z >> 16) & 255, (z >> 24) & 255),
         "linea": campo(304, 9),
         "letrero": campo(313, 2),
@@ -127,8 +112,6 @@ def letra(tam):
 
 
 def dibujar(img, datos=None, mascara=None, parpadeo=True, ver_mascara=False):
-    """Pinta sobre la imagen lo mismo que pone la FPGA en el monitor: silueta, zona, linea,
-    recuadros con letrero, alarma y barra de estado. Las celdas son de 80 x 60."""
     d = ImageDraw.Draw(img, "RGBA")
     cw, chh = img.width / 80.0, img.height / 60.0
     f_chica, f_grande = letra(max(12, img.height // 30)), letra(max(20, img.height // 10))
@@ -148,7 +131,7 @@ def dibujar(img, datos=None, mascara=None, parpadeo=True, ver_mascara=False):
         if color == 0:
             continue
         c = COLORES[color]
-        # silueta: contorno de la mascara dentro del recuadro
+        # silueta
         if m is not None and color != 3:
             for cy in range(by0, min(by1, 59) + 1):
                 for cx in range(bx0, min(bx1, 79) + 1):

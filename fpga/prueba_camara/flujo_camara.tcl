@@ -1,12 +1,3 @@
-# Baja el video de la camara por el JTAG virtual y lo escribe en la salida
-# estandar, un cuadro tras otro (lo lee ver_camara.py).
-# Uso (desde fpga/prueba_camara):
-#   quartus_stp -t flujo_camara.tcl [cuadros] [modo] [periodo_ms]
-#     cuadros     cuantos cuadros mandar (0 = sin fin)
-#     modo        1 = imagen completa 320 x 240, 2 = imagen rapida 160 x 120
-#     periodo_ms  tiempo minimo entre cuadros (la camara da uno cada 128 ms)
-# Cada cuadro sale como:  CUADRO <n> <ms> <ancho> <alto>  y una linea en
-# hexadecimal: dos digitos por pixel; el ultimo par de digitos es el pixel 0.
 set cuadros 0
 set modo    2
 set periodo 0

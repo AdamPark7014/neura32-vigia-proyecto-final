@@ -1,34 +1,10 @@
-// ============================================================
-// PROGRAMA 3 — NEURA-32 VIGIA: vigilancia perimetral inteligente
-//
-// Escrito con el codificador Verilog (codificador_riscv.vh):
-//   LW(rd, rs1, imm) = lw rd, imm(rs1)     SW(rs2, rs1, imm) = sw rs2, imm(rs1)
-//   XOP(f3, rd, rs1, rs2) = instruccion de la tabla OP_R3 (abs, sgt, clamp) con funct3 = f3
-//
-// Registros fijos:  s0 = perifericos 0xFFFF0000   s1 = RAM 0x10000000
-//                   s2 = mascara 0x20000000       s3 = etiquetas (RAM + 0x800)
-//                   s11 = ciclo de inicio del cuadro, sp = pila
-// Las subrutinas pueden usar t*, a*, s4..s10, gp y tp.
-//
-// Flujo:
-//   1. configura la camara por SCCB (bit-bang) y lee su identificacion
-//   2. mide la red binaria con xnor + cpop y contando los bits por software (contador TICKS)
-//      y hace la autoprueba: tres siluetas guardadas (cuerpo completo, medio cuerpo y busto)
-//   3. aprende el fondo unos cuadros
-//   4. por cada mascara: etiqueta manchas -> recorta 16x32 -> red binaria ->
-//      voto entre cuadros -> sigue a cada persona -> reglas de zona y linea -> dibuja y avisa
-//   5. si mas de la mitad de la imagen cambia (movieron la camara o la luz), vuelve a
-//      aprender el fondo en lugar de dar alarmas falsas
-// ============================================================
-
-// ---------------- perifericos (desplazamiento sobre s0) ----------------
 localparam PV_LEDS = 32'h00, PV_SW = 32'h04, PV_HEX = 32'h08, PV_KEY = 32'h0C;
 localparam PV_TICKS = 32'h10, PV_CONSOLA = 32'h14, PV_CONTROL = 32'h18, PV_PLATAFORMA = 32'h24;
 localparam PV_CAM_SAL = 32'h40, PV_CAM_ENT = 32'h44, PV_VIS_CTRL = 32'h48, PV_VIS_EST = 32'h4C;
 localparam PV_VIS_FG = 32'h50;
 localparam PV_ZONA = 32'h54, PV_LINEA = 32'h58, PV_LETRERO = 32'h5C, PV_CAJA0 = 32'h60, PV_COLORES = 32'h80;
 
-// ---------------- variables en RAM (desplazamiento sobre s1) ----------------
+// variables en RAM
 localparam VR_SIM = 0, VR_RETARDO = 4, VR_PID = 8, VR_VER = 12, VR_CUADRO = 16;
 localparam VR_ENTRADAS = 20, VR_SALIDAS = 24, VR_ALARMA = 28, VR_NBLOBS = 32, VR_EN_ZONA = 36;
 localparam VR_SIG_ID = 40, VR_BENCH_X = 44, VR_BENCH_R = 48, VR_ZONA = 52, VR_LINEA = 56;
@@ -39,18 +15,13 @@ localparam VR_AUTOPRUEBA = 128, VR_MOVIDA = 132, VR_N_REAP = 136, VR_REAPRENDIDO
 localparam VR_BLOBS = 32'h100, VR_PISTAS = 32'h300, VR_RECORTE = 32'h400, VR_EVENT_LOG = 32'h500;
 localparam DIR_ETIQ = 32'h10000800, DIR_PILA_FF = 32'h10001C00, DIR_PILA = 32'h10004000;
 
-// mancha (32 B): +0 x0 +4 y0 +8 x1 +12 y1 +16 area +20 etiqueta +24 clase que dio la red
-//                +28 {id de la pista [15:8], persona confirmada por votos [1], en zona [0]}
-// pista (32 B):  +0 votos (0 = libre) +4 id +8 cx +12 pies +16 lado +20 permanencia +24 perdida +28 banderas
-
-// ---------------- parametros del algoritmo ----------------
+// parametros del algoritmo
 localparam AREA_MIN = 12, MAX_BLOBS = 8, MAX_PISTAS = 8, DIST_MAX = 14, PERM_MIN = 3;
 localparam UMBRAL = 28, ALFA = 3;
-localparam VOTO_MIN = 2, VOTO_MAX = 4;     // votos para confirmar a una persona y tope de votos
-localparam MOVIDA_MIN = 3;                 // cuadros seguidos con media imagen cambiada = camara movida
-// De la tabla OP_R3 se usan |x| (XA_ABS) y la comparacion x > y (XA_SGT)
+localparam VOTO_MIN = 2, VOTO_MAX = 4;
+localparam MOVIDA_MIN = 3;
 
-// ---------------- etiquetas ----------------
+// etiquetas
 integer L_inicio, L_plat_ok, L_lim, L_lim2, L_cam_ok, L_cam_sigue, L_cfg, L_cfg_fin, L_cp;
 integer L_bucle, L_espera, L_sin_borrar, L_no_aec, L_aprende, L_detecta, L_cls, L_cls_np, L_cls_sig;
 integer L_cls_fin, L_libera;
@@ -71,10 +42,8 @@ integer T_autoprueba, T_de3, T_movida;
 integer V_fin;
 integer vw;
 
-// ---------------- ayudas de emision ----------------
-
-// escribe SIOC/SIOD de la camara y espera medio periodo SCCB
-//   CAM_SAL = {PWDN = 0, RESET# = 1, SIOD en bajo, SIOC}
+// ayudas de emision
+// lineas SCCB
 task CAM_LINEAS;
     input scl, sda;
     begin
@@ -84,7 +53,7 @@ task CAM_LINEAS;
     end
 endtask
 
-task RETARDO_SCCB;                      // lazo de VR_RETARDO vueltas (sin etiquetas)
+task RETARDO_SCCB;
     begin
         emitir(LW(T5, S1, VR_RETARDO));
         emitir(ADDI(T5, T5, -1));
@@ -92,7 +61,7 @@ task RETARDO_SCCB;                      // lazo de VR_RETARDO vueltas (sin etiqu
     end
 endtask
 
-task TEXTO;                             // imprime una cadena de la ROM
+task TEXTO;
     input integer etiqueta;
     begin
         LA(A0, etiqueta);
@@ -100,7 +69,7 @@ task TEXTO;                             // imprime una cadena de la ROM
     end
 endtask
 
-// cadena terminada en 0, rellenada a palabra (hasta 40 caracteres)
+// cadena
 task CADENA;
     input [8*40-1:0] s;
     integer k, m;
@@ -112,41 +81,39 @@ task CADENA;
             c = s[8*k +: 8];
             if (c != 0) begin cad[8*m +: 8] = c; m = m + 1; end
         end
-        m = m + 1;                                      // terminador
+        m = m + 1;
         while (m % 4 != 0) m = m + 1;
         for (k = 0; k < m; k = k + 4)
             emitir_bytes(cad[8*k +: 8], cad[8*(k+1) +: 8], cad[8*(k+2) +: 8], cad[8*(k+3) +: 8]);
     end
 endtask
 
-// vecino de la mancha (relleno por inundacion), sin etiquetas:
-//   t3 = indice del pixel actual, t0 = coordenadas empacadas {y, x}
-//   si mascara[t3+d] != 0 y no tiene etiqueta: se etiqueta y se mete a la pila
+// vecino
 task VECINO;
     input integer d, dp;
     begin
-        emitir(ADDI(T4, T3, d));                        //  1 indice del vecino
-        emitir(ADD (T5, S2, T4));                       //  2
-        emitir(LBU (T5, T5, 0));                        //  3 mascara
-        emitir(BEQ (T5, X0, 36));                       //  4 fondo -> fin
-        emitir(ADD (T5, S3, T4));                       //  5
-        emitir(LBU (A1, T5, 0));                        //  6 etiqueta
-        emitir(BNE (A1, X0, 24));                       //  7 ya visitado -> fin
-        emitir(SB  (S10, T5, 0));                       //  8 etiquetar
-        emitir(BGEU(S8, S9, 16));                       //  9 pila llena -> fin
-        emitir(ADDI(A1, T0, dp));                       // 10
-        emitir(SH  (A1, S8, 0));                        // 11 meter a la pila
-        emitir(ADDI(S8, S8, 2));                        // 12
+        emitir(ADDI(T4, T3, d));
+        emitir(ADD (T5, S2, T4));
+        emitir(LBU (T5, T5, 0));
+        emitir(BEQ (T5, X0, 36));
+        emitir(ADD (T5, S3, T4));
+        emitir(LBU (A1, T5, 0));
+        emitir(BNE (A1, X0, 24));
+        emitir(SB  (S10, T5, 0));
+        emitir(BGEU(S8, S9, 16));
+        emitir(ADDI(A1, T0, dp));
+        emitir(SH  (A1, S8, 0));
+        emitir(ADDI(S8, S8, 2));
     end
 endtask
 
-// cuenta >= umbral -> bit j de la capa oculta (a4: bits 0..31, a5: bits 32..63)
+// umbral y bit
 task UMBRAL_Y_BIT;
     begin
         emitir(LW  (T2, A3, 0));
         emitir(ADDI(A3, A3, 4));
         emitir(SLTU(T2, T0, T2));
-        emitir(XORI(T2, T2, 1));                        // a = (cuenta >= T)
+        emitir(XORI(T2, T2, 1));
         emitir(ANDI(T4, TP, 31));
         emitir(SLL (T2, T2, T4));
         emitir(ADDI(T4, X0, 32));
@@ -163,9 +130,7 @@ task programa_vigia;
     begin
         pc_ens = 0;
 
-        // =====================================================================
-        // ARRANQUE
-        // =====================================================================
+        // arranque
         L_inicio = pc_ens;
         emitir(LUI(S0, 32'hFFFF0000));
         emitir(LUI(S1, 32'h10000000));
@@ -173,7 +138,7 @@ task programa_vigia;
         LI(S3, DIR_ETIQ);
         LI(SP, DIR_PILA);
 
-        // limpiar variables (0x10..0xFF) y pistas (0x300..0x3FF)
+        // limpiar RAM
         emitir(ADDI(T0, S1, 16));
         emitir(ADDI(T1, S1, 256));
         L_lim = pc_ens;
@@ -189,53 +154,51 @@ task programa_vigia;
         emitir(ADDI(T0, X0, 1));
         emitir(SW(T0, S1, VR_SIG_ID));
 
-        // plataforma: los tiempos de espera cambian entre simulacion y placa
+        // plataforma
         emitir(LW  (T0, S0, PV_PLATAFORMA));
         emitir(ANDI(T0, T0, 1));
         emitir(SW  (T0, S1, VR_SIM));
-        emitir(ADDI(T1, X0, 2));                        // simulacion: medio bit SCCB corto
-        emitir(ADDI(T2, X0, 1));                        //   exposicion fija en el cuadro 1
-        emitir(ADDI(T3, X0, 4));                        //   fondo aprendido en el cuadro 4
-        emitir(ADDI(T4, X0, 1));                        //   esperas largas cortas
+        emitir(ADDI(T1, X0, 2));
+        emitir(ADDI(T2, X0, 1));
+        emitir(ADDI(T3, X0, 4));
+        emitir(ADDI(T4, X0, 1));
         BNEZ(T0, L_plat_ok);
-        emitir(ADDI(T1, X0, 50));                       // placa: medio bit ~6 us (< 100 kHz)
-        emitir(ADDI(T2, X0, 62));                       //   2 s a 31 cuadros por segundo
-        emitir(ADDI(T3, X0, 93));                       //   1 s mas para aprender el fondo
-        emitir(ADDI(T4, X0, 64));                       //   esperas de ~100 ms tras el reset de la camara
+        emitir(ADDI(T1, X0, 50));
+        emitir(ADDI(T2, X0, 62));
+        emitir(ADDI(T3, X0, 93));
+        emitir(ADDI(T4, X0, 64));
         L_plat_ok = pc_ens;
         emitir(SW(T4, S1, VR_ESPERA));
         emitir(SW(T1, S1, VR_RETARDO));
         emitir(SW(T2, S1, VR_F_AEC));
         emitir(SW(T3, S1, VR_F_APRENDE));
-        // lo mismo cuando la camara se mueve: cuadros de exposicion automatica y de aprendizaje
-        emitir(ADDI(T1, X0, 1));                        // simulacion
+        emitir(ADDI(T1, X0, 1));
         emitir(ADDI(T2, X0, 2));
         BNEZ(T0, L_plat_ok2);
-        emitir(ADDI(T1, X0, 31));                       // placa: 1 s para que la exposicion se acomode
-        emitir(ADDI(T2, X0, 47));                       //   y medio segundo mas para aprender el fondo
+        emitir(ADDI(T1, X0, 31));
+        emitir(ADDI(T2, X0, 47));
         L_plat_ok2 = pc_ens;
         emitir(SW(T1, S1, VR_N_AEC));
         emitir(SW(T2, S1, VR_N_REAP));
 
-
         TEXTO(T_titulo);
 
-        // ---- camara: pulso de reset por su pin y reinicio de registros ----
-        emitir(ADDI(T0, X0, 1));                        // RESET# = 0, SIOC = 1, SIOD suelto
+        // reset de camara
+        emitir(ADDI(T0, X0, 1));
         emitir(SW(T0, S0, PV_CAM_SAL));
         emitir(ADDI(A0, X0, 64));
         CALL(L_espera_larga);
-        emitir(ADDI(T0, X0, 5));                        // RESET# = 1
+        emitir(ADDI(T0, X0, 5));
         emitir(SW(T0, S0, PV_CAM_SAL));
         emitir(ADDI(A0, X0, 256));
         CALL(L_espera_larga);
-        emitir(ADDI(A0, X0, 32'h12));                   // COM7 = 0x80: reinicio de registros
+        emitir(ADDI(A0, X0, 32'h12));
         emitir(ADDI(A1, X0, 32'h80));
         CALL(L_sccb_escribe);
         emitir(ADDI(A0, X0, 256));
         CALL(L_espera_larga);
 
-        // ---- identificacion: PID = 0x76, VER = 0x73 comprueba el cableado ----
+        // identificacion
         emitir(ADDI(A0, X0, 32'h0A));
         CALL(L_sccb_lee);
         emitir(SW(A0, S1, VR_PID));
@@ -251,7 +214,7 @@ task programa_vigia;
         emitir(ADDI(A1, X0, 2));
         CALL(L_hex);
         TEXTO(T_nl);
-        emitir(LW  (T0, S1, VR_PID));                   // HEX muestra "7673" si responde
+        emitir(LW  (T0, S1, VR_PID));
         emitir(SLLI(T0, T0, 8));
         emitir(LW  (T1, S1, VR_VER));
         emitir(OR  (T0, T0, T1));
@@ -260,22 +223,22 @@ task programa_vigia;
         emitir(ADDI(T1, X0, 32'h76));
         BEQ_A(T0, T1, L_cam_ok);
         TEXTO(T_error_cam);
-        emitir(ADDI(T0, X0, 2));                        // CONTROL.error
+        emitir(ADDI(T0, X0, 2));
         emitir(SW(T0, S0, PV_CONTROL));
         J(L_cam_sigue);
         L_cam_ok = pc_ens;
         emitir(ADDI(T0, X0, 1));
         emitir(SW(T0, S1, VR_CAM_OK));
         L_cam_sigue = pc_ens;
-        emitir(LW  (T0, S1, VR_CAM_OK));                // LED7 = la camara respondio por SCCB
+        emitir(LW  (T0, S1, VR_CAM_OK));
         emitir(SLLI(T0, T0, 7));
         emitir(SW  (T0, S0, PV_LEDS));
 
-        // ---- tabla de registros de la camara ----
+        // tabla de registros
         LA(S4, T_sccb);
         emitir(LW  (T0, S1, VR_SIM));
         BEQZ(T0, L_cfg);
-        LA(S4, T_sccb_sim);                             // en simulacion, solo lo indispensable
+        LA(S4, T_sccb_sim);
         L_cfg = pc_ens;
         emitir(LW  (T0, S4, 0));
         emitir(ADDI(T1, X0, -1));
@@ -288,7 +251,7 @@ task programa_vigia;
         L_cfg_fin = pc_ens;
         TEXTO(T_cfg);
 
-        // ---- medicion de la red: con cpop contra el conteo de bits por software ----
+        // medicion
         LA(T0, T_prueba);
         emitir(ADDI(T1, S1, VR_RECORTE));
         emitir(ADDI(T2, X0, 16));
@@ -314,7 +277,7 @@ task programa_vigia;
         emitir(LW  (T0, S0, PV_TICKS));
         emitir(SUB (T0, T0, S11));
         emitir(SW  (T0, S1, VR_BENCH_R));
-        emitir(SLLI(A0, A0, 8));                        // {clase sin cpop, clase con cpop}
+        emitir(SLLI(A0, A0, 8));
         emitir(LW  (T0, S1, VR_CLASE_PRUEBA));
         emitir(OR  (T0, T0, A0));
         emitir(SW  (T0, S1, VR_CLASE_PRUEBA));
@@ -328,13 +291,12 @@ task programa_vigia;
         CALL(L_hex);
         TEXTO(T_ciclos_nl);
 
-        // ---- autoprueba de la red: tres siluetas guardadas en la memoria de programa ----
-        // (cuerpo completo, medio cuerpo y busto); las tres deben salir como persona
-        emitir(ADDI(S10, X0, 0));                       // silueta
-        emitir(ADDI(S11, X0, 0));                       // cuantas salieron persona
+        // autoprueba de la red
+        emitir(ADDI(S10, X0, 0));
+        emitir(ADDI(S11, X0, 0));
         L_ap = pc_ens;
         LA(T0, T_prueba);
-        emitir(SLLI(T1, S10, 6));                       // 16 palabras por silueta
+        emitir(SLLI(T1, S10, 6));
         emitir(ADD (T0, T0, T1));
         emitir(ADDI(T1, S1, VR_RECORTE));
         emitir(ADDI(T2, X0, 16));
@@ -348,7 +310,7 @@ task programa_vigia;
         emitir(ADDI(A0, S1, VR_RECORTE));
         emitir(ADDI(A1, X0, 0));
         CALL(L_red);
-        emitir(SLTIU(T0, A0, 1));                       // 1 si la clase es 0 (persona)
+        emitir(SLTIU(T0, A0, 1));
         emitir(ADD (S11, S11, T0));
         emitir(ADDI(S10, S10, 1));
         emitir(ADDI(T0, X0, 3));
@@ -360,17 +322,14 @@ task programa_vigia;
         CALL(L_hex);
         TEXTO(T_de3);
 
-        // ---- arranca la vision: captura + umbral + alfa + aprender fondo ----
-        // (bits 26:25 = 2: reloj XCLK a 180 grados, la fase que se midio limpia en la placa)
+        // arranca la vision
         LI(T0, 32'h04100001 | (UMBRAL << 8) | (ALFA << 16));
         emitir(SW(T0, S1, VR_VIS_CTRL));
         emitir(SW(T0, S0, PV_VIS_CTRL));
         emitir(ADDI(T0, X0, 1));
-        emitir(SW(T0, S0, PV_VIS_EST));                 // libera cualquier mascara vieja
+        emitir(SW(T0, S0, PV_VIS_EST));
 
-        // =====================================================================
-        // BUCLE PRINCIPAL: una vuelta por mascara
-        // =====================================================================
+        // bucle principal
         L_bucle = pc_ens;
         L_espera = pc_ens;
         emitir(LW  (T0, S0, PV_VIS_EST));
@@ -381,7 +340,7 @@ task programa_vigia;
         emitir(ADDI(T0, T0, 1));
         emitir(SW  (T0, S1, VR_CUADRO));
 
-        // interruptores: SW1..0 zona, SW2 sentido prohibido, SW3 ver silueta, SW4 red sin cpop
+        // interruptores
         emitir(LW  (T1, S0, PV_SW));
         emitir(ANDI(T2, T1, 3));
         emitir(SLLI(T2, T2, 3));
@@ -397,9 +356,8 @@ task programa_vigia;
         emitir(SRLI(T2, T1, 4));
         emitir(ANDI(T2, T2, 1));
         emitir(SW  (T2, S1, VR_MODO));
-        // SW3 = ver la silueta, SW7..SW5 = umbral (28 + 8 n), SW9 = volver a aprender el fondo
         emitir(LW  (T2, S1, VR_VIS_CTRL));
-        LI(T3, 32'hFFDF00FF);                           // borra umbral [15:8] y ver silueta [21]
+        LI(T3, 32'hFFDF00FF);
         emitir(AND (T2, T2, T3));
         emitir(SRLI(T4, T1, 3));
         emitir(ANDI(T4, T4, 1));
@@ -415,39 +373,39 @@ task programa_vigia;
         emitir(SRLI(T4, T1, 9));
         emitir(ANDI(T4, T4, 1));
         emitir(SLLI(T4, T4, 20));
-        emitir(OR  (T2, T2, T4));                       // aprender mientras SW9 este arriba
+        emitir(OR  (T2, T2, T4));
         emitir(SW  (T2, S0, PV_VIS_CTRL));
-        // KEY1 (activo en bajo) borra la alarma
+        // KEY1
         emitir(LW  (T2, S0, PV_KEY));
         emitir(ANDI(T2, T2, 2));
         BNEZ(T2, L_sin_borrar);
         emitir(SW(X0, S1, VR_ALARMA));
         L_sin_borrar = pc_ens;
 
-        // fases de arranque: exposicion fija y aprendizaje del fondo
+        // arranque
         emitir(LW(T1, S1, VR_F_AEC));
         BNE_A(T0, T1, L_no_aec);
-        emitir(ADDI(A0, X0, 32'h13));                   // COM8: sin AGC, AWB ni AEC
+        emitir(ADDI(A0, X0, 32'h13));
         emitir(ADDI(A1, X0, 32'hE0));
         CALL(L_sccb_escribe);
         TEXTO(T_aec);
         L_no_aec = pc_ens;
-        emitir(LW  (T2, S0, PV_SW));                    // SW9 arriba: solo aprende el fondo
+        emitir(LW  (T2, S0, PV_SW));
         emitir(ANDI(T2, T2, 512));
         BNEZ(T2, L_aprende);
         emitir(LW(T0, S1, VR_CUADRO));
         emitir(LW(T1, S1, VR_F_APRENDE));
         BLT_A(T1, T0, L_detecta);
         BNE_A(T0, T1, L_aprende);
-        emitir(LW  (T2, S1, VR_VIS_CTRL));              // ultimo cuadro de aprendizaje
+        emitir(LW  (T2, S1, VR_VIS_CTRL));
         LI(T3, 32'hFFEFFFFF);
         emitir(AND (T2, T2, T3));
         emitir(SW  (T2, S1, VR_VIS_CTRL));
         emitir(SW  (T2, S0, PV_VIS_CTRL));
         TEXTO(T_fondo);
         L_aprende = pc_ens;
-        emitir(LW  (T0, S1, VR_CUADRO));                // LED8 = aprendiendo, LED7 = camara,
-        emitir(ANDI(T0, T0, 1));                        // LED6 parpadea con cada cuadro
+        emitir(LW  (T0, S1, VR_CUADRO));
+        emitir(ANDI(T0, T0, 1));
         emitir(SLLI(T0, T0, 6));
         emitir(ORI (T0, T0, 32'h100));
         emitir(LW  (T1, S1, VR_CAM_OK));
@@ -456,12 +414,9 @@ task programa_vigia;
         emitir(SW  (T0, S0, PV_LEDS));
         J(L_libera);
 
-        // ---- deteccion ----
+        // deteccion
         L_detecta = pc_ens;
-        // Si cambio mas de la mitad de la imagen (2400 de 4800 celdas) no es una persona:
-        // movieron la camara o cambio la luz. Ese cuadro no se analiza; a los MOVIDA_MIN
-        // cuadros seguidos se olvidan las pistas, la camara vuelve a medir la exposicion
-        // y se aprende el fondo otra vez (las mismas fases del arranque).
+        // camara movida
         emitir(LW  (T0, S0, PV_VIS_FG));
         LI(T1, 2400);
         BLTU_A(T0, T1, L_quieta);
@@ -477,26 +432,26 @@ task programa_vigia;
         emitir(LW  (T0, S1, VR_CUADRO));
         emitir(LW  (T1, S1, VR_N_AEC));
         emitir(ADD (T1, T0, T1));
-        emitir(SW  (T1, S1, VR_F_AEC));                 // cuadro en que la exposicion se vuelve a fijar
+        emitir(SW  (T1, S1, VR_F_AEC));
         emitir(LW  (T1, S1, VR_N_REAP));
         emitir(ADD (T1, T0, T1));
-        emitir(SW  (T1, S1, VR_F_APRENDE));             // cuadro en que termina de aprender
+        emitir(SW  (T1, S1, VR_F_APRENDE));
         emitir(LW  (T2, S1, VR_VIS_CTRL));
         LI(T3, 32'h00100000);
-        emitir(OR  (T2, T2, T3));                       // aprender fondo = 1
+        emitir(OR  (T2, T2, T3));
         emitir(SW  (T2, S1, VR_VIS_CTRL));
         emitir(SW  (T2, S0, PV_VIS_CTRL));
-        emitir(ADDI(T0, S1, VR_PISTAS));                // las pistas ya no valen
+        emitir(ADDI(T0, S1, VR_PISTAS));
         emitir(ADDI(T1, S1, VR_RECORTE));
         L_mov_lim = pc_ens;
         emitir(SW  (X0, T0, 0));
         emitir(ADDI(T0, T0, 4));
         BLTU_A(T0, T1, L_mov_lim);
-        emitir(SW  (X0, S0, PV_COLORES));               // sin recuadros en el monitor
+        emitir(SW  (X0, S0, PV_COLORES));
         emitir(SW  (X0, S1, VR_NBLOBS));
         emitir(SW  (X0, S1, VR_EN_ZONA));
         emitir(SW  (X0, S1, VR_VISTAS));
-        emitir(ADDI(A0, X0, 32'h13));                   // COM8: exposicion, ganancia y blancos automaticos
+        emitir(ADDI(A0, X0, 32'h13));
         emitir(ADDI(A1, X0, 32'hE7));
         CALL(L_sccb_escribe);
         TEXTO(T_movida);
@@ -536,22 +491,19 @@ task programa_vigia;
         L_cls_fin = pc_ens;
         CALL(L_seguimiento);
         CALL(L_dibujar);
-        emitir(LW  (T0, S0, PV_TICKS));              // ciclos que tomo este cuadro
+        emitir(LW  (T0, S0, PV_TICKS));
         emitir(SUB (T0, T0, S11));
         emitir(SW  (T0, S1, VR_CICLOS));
         emitir(LW  (T1, S1, VR_MAX_CICLOS));
         BGEU_A(T1, T0, L_libera);
         emitir(SW  (T0, S1, VR_MAX_CICLOS));
         L_libera = pc_ens;
-        emitir(ADDI(T0, X0, 1));                        // libera la mascara (ack)
+        emitir(ADDI(T0, X0, 1));
         emitir(SW  (T0, S0, PV_VIS_EST));
         J(L_bucle);
 
-        // =====================================================================
-        // SUBRUTINAS DE APOYO
-        // =====================================================================
-
-        // ---- espera_larga(a0 x VR_ESPERA vueltas de RETARDO_SCCB) ----
+        // subrutinas
+        // espera larga
         L_espera_larga = pc_ens;
         emitir(LW  (T4, S1, VR_ESPERA));
         emitir(MUL (A0, A0, T4));
@@ -561,7 +513,7 @@ task programa_vigia;
         BNEZ(A0, L_espera_bucle);
         RET;
 
-        // ---- imprime(a0 = cadena en ROM) ----
+        // imprime
         L_imprime = pc_ens;
         emitir(LBU(T0, A0, 0));
         BEQZ(T0, L_imp_fin);
@@ -571,7 +523,7 @@ task programa_vigia;
         L_imp_fin = pc_ens;
         RET;
 
-        // ---- hex(a0 = valor, a1 = digitos) ----
+        // hex
         L_hex = pc_ens;
         emitir(SLLI(T1, A1, 2));
         L_hex_bucle = pc_ens;
@@ -587,46 +539,44 @@ task programa_vigia;
         BNEZ(T1, L_hex_bucle);
         RET;
 
-        // =====================================================================
-        // SCCB (I2C de OmniVision) por software
-        // =====================================================================
-        L_sccb_inicio = pc_ens;                         // SIOD baja con SIOC en alto
+        // SCCB por software
+        L_sccb_inicio = pc_ens;
         CAM_LINEAS(1, 1);
         CAM_LINEAS(1, 0);
         CAM_LINEAS(0, 0);
         RET;
 
-        L_sccb_fin = pc_ens;                            // SIOD sube con SIOC en alto
+        L_sccb_fin = pc_ens;
         CAM_LINEAS(0, 0);
         CAM_LINEAS(1, 0);
         CAM_LINEAS(1, 1);
         RET;
 
-        L_sccb_byte = pc_ens;                           // envia a0[7:0], bit 7 primero
+        L_sccb_byte = pc_ens;
         emitir(ADDI(T4, X0, 8));
         L_sb_bit = pc_ens;
         emitir(SRLI(T3, A0, 7));
         emitir(ANDI(T3, T3, 1));
-        emitir(XORI(T3, T3, 1));                        // SIOD en bajo = bit 0
+        emitir(XORI(T3, T3, 1));
         emitir(SLLI(T3, T3, 1));
-        emitir(ORI (T3, T3, 4));                        // SIOC = 0
+        emitir(ORI (T3, T3, 4));
         emitir(SW  (T3, S0, PV_CAM_SAL));
         RETARDO_SCCB;
-        emitir(ORI (T3, T3, 1));                        // SIOC = 1
+        emitir(ORI (T3, T3, 1));
         emitir(SW  (T3, S0, PV_CAM_SAL));
         RETARDO_SCCB;
-        emitir(ANDI(T3, T3, -2));                       // SIOC = 0
+        emitir(ANDI(T3, T3, -2));
         emitir(SW  (T3, S0, PV_CAM_SAL));
         RETARDO_SCCB;
         emitir(SLLI(A0, A0, 1));
         emitir(ADDI(T4, T4, -1));
         BNEZ(T4, L_sb_bit);
-        CAM_LINEAS(0, 1);                               // noveno bit: "no importa"
+        CAM_LINEAS(0, 1);
         CAM_LINEAS(1, 1);
         CAM_LINEAS(0, 1);
         RET;
 
-        L_sccb_leer = pc_ens;                           // recibe un byte en a0
+        L_sccb_leer = pc_ens;
         emitir(ADDI(T4, X0, 8));
         emitir(ADDI(A0, X0, 0));
         CAM_LINEAS(0, 1);
@@ -639,11 +589,11 @@ task programa_vigia;
         CAM_LINEAS(0, 1);
         emitir(ADDI(T4, T4, -1));
         BNEZ(T4, L_sl_bit);
-        CAM_LINEAS(1, 1);                               // NA del maestro
+        CAM_LINEAS(1, 1);
         CAM_LINEAS(0, 1);
         RET;
 
-        L_sccb_escribe = pc_ens;                        // registro a0 <- a1
+        L_sccb_escribe = pc_ens;
         emitir(ADDI(SP, SP, -16));
         emitir(SW  (RA, SP, 0));
         emitir(SW  (A0, SP, 4));
@@ -660,7 +610,7 @@ task programa_vigia;
         emitir(ADDI(SP, SP, 16));
         RET;
 
-        L_sccb_lee = pc_ens;                            // a0 <- registro a0
+        L_sccb_lee = pc_ens;
         emitir(ADDI(SP, SP, -16));
         emitir(SW  (RA, SP, 0));
         emitir(SW  (A0, SP, 4));
@@ -681,12 +631,7 @@ task programa_vigia;
         emitir(ADDI(SP, SP, 16));
         RET;
 
-        // =====================================================================
-        // ETIQUETADO DE MANCHAS (componentes conexos, 4 vecinos)
-        // Recorre la mascara de 4 en 4 pixeles; cada pixel de silueta sin
-        // etiqueta inicia un relleno por inundacion con pila en RAM.
-        // Guarda en VR_BLOBS las manchas de al menos AREA_MIN pixeles.
-        // =====================================================================
+        // etiquetado de manchas
         L_etiquetar = pc_ens;
         emitir(ADDI(T0, S3, 0));
         LI(T1, DIR_ETIQ + 4800);
@@ -697,15 +642,15 @@ task programa_vigia;
         emitir(SW  (X0, T0, 12));
         emitir(ADDI(T0, T0, 16));
         BLTU_A(T0, T1, L_borra);
-        emitir(ADDI(S4, X0, 0));                        // manchas aceptadas
-        emitir(ADDI(S10, X0, 0));                       // ultima etiqueta usada
-        emitir(ADDI(S5, X0, 0));                        // indice del pixel (de 4 en 4)
-        emitir(ADDI(S6, X0, 0));                        // y
-        emitir(ADDI(S7, X0, 0));                        // x
+        emitir(ADDI(S4, X0, 0));
+        emitir(ADDI(S10, X0, 0));
+        emitir(ADDI(S5, X0, 0));
+        emitir(ADDI(S6, X0, 0));
+        emitir(ADDI(S7, X0, 0));
         LI(GP, 4800);
         L_scan = pc_ens;
         emitir(ADD (T0, S2, S5));
-        emitir(LW  (T6, T0, 0));                        // 4 pixeles de la mascara
+        emitir(LW  (T6, T0, 0));
         BEQZ(T6, L_scan_sig);
         emitir(ADDI(TP, X0, 0));
         L_scan_b = pc_ens;
@@ -716,15 +661,15 @@ task programa_vigia;
         emitir(ADD (T2, S5, TP));
         emitir(ADD (T3, S3, T2));
         emitir(LBU (T4, T3, 0));
-        BNEZ(T4, L_scan_b_sig);                         // ya pertenece a una mancha
+        BNEZ(T4, L_scan_b_sig);
         emitir(ADDI(T5, X0, 254));
-        BGEU_A(S10, T5, L_scan_b_sig);                  // sin etiquetas libres
+        BGEU_A(S10, T5, L_scan_b_sig);
         emitir(ADDI(S10, S10, 1));
-        emitir(ADD (A2, S7, TP));                       // recuadro inicial = la semilla
+        emitir(ADD (A2, S7, TP));
         emitir(ADDI(A4, A2, 0));
         emitir(ADDI(A3, S6, 0));
         emitir(ADDI(A5, S6, 0));
-        emitir(ADDI(A6, X0, 0));                        // area
+        emitir(ADDI(A6, X0, 0));
         emitir(SB  (S10, T3, 0));
         LI(S8, DIR_PILA_FF);
         LI(A7, DIR_PILA_FF);
@@ -737,25 +682,25 @@ task programa_vigia;
         BEQ_A(S8, A7, L_ff_fin);
         emitir(ADDI(S8, S8, -2));
         emitir(LHU (T0, S8, 0));
-        emitir(ANDI(T1, T0, 255));                      // x
-        emitir(SRLI(T2, T0, 8));                        // y
+        emitir(ANDI(T1, T0, 255));
+        emitir(SRLI(T2, T0, 8));
         emitir(ADDI(A6, A6, 1));
-        emitir(MIN (A2, A2, T1));                       // recuadro con min/max (tabla OP_R2)
+        emitir(MIN (A2, A2, T1));
         emitir(MAX (A4, A4, T1));
         emitir(MIN (A3, A3, T2));
         emitir(MAX (A5, A5, T2));
-        emitir(SLLI(T3, T2, 6));                        // indice = 80 y + x
+        emitir(SLLI(T3, T2, 6));
         emitir(SLLI(T4, T2, 4));
         emitir(ADD (T3, T3, T4));
         emitir(ADD (T3, T3, T1));
-        emitir(BEQ (T1, X0, 52));                       // izquierda
+        emitir(BEQ (T1, X0, 52));
         VECINO(-1, -1);
-        emitir(ADDI(A1, X0, 79));                       // derecha
+        emitir(ADDI(A1, X0, 79));
         emitir(BEQ (T1, A1, 52));
         VECINO(1, 1);
-        emitir(BEQ (T2, X0, 52));                       // arriba
+        emitir(BEQ (T2, X0, 52));
         VECINO(-80, -256);
-        emitir(ADDI(A1, X0, 59));                       // abajo
+        emitir(ADDI(A1, X0, 59));
         emitir(BEQ (T2, A1, 52));
         VECINO(80, 256);
         J(L_ff);
@@ -792,61 +737,57 @@ task programa_vigia;
         emitir(SW(S4, S1, VR_NBLOBS));
         RET;
 
-        // =====================================================================
-        // RECORTE 16 x 32 (a0 = mancha)
-        // Ventana 1:2 centrada en el recuadro: alto = max(h, 2w); se muestrea
-        // con acumuladores (fila r -> y0 + r*alto/32) sin dividir.
-        // =====================================================================
+        // recorte 16 x 32
         L_recortar = pc_ens;
         emitir(LW  (A2, A0, 0));
         emitir(LW  (A3, A0, 4));
         emitir(LW  (A4, A0, 8));
         emitir(LW  (A5, A0, 12));
-        emitir(LW  (A6, A0, 20));                       // etiqueta de la mancha
+        emitir(LW  (A6, A0, 20));
         emitir(SUB (T0, A4, A2));
         emitir(ADDI(T0, T0, 1));
-        emitir(SLLI(T0, T0, 1));                        // 2w
+        emitir(SLLI(T0, T0, 1));
         emitir(SUB (T1, A5, A3));
-        emitir(ADDI(T1, T1, 1));                        // h
-        emitir(MAX (S4, T0, T1));                       // alto de la ventana (tabla OP_R2)
+        emitir(ADDI(T1, T1, 1));
+        emitir(MAX (S4, T0, T1));
         emitir(ADD (T2, A2, A4));
         emitir(SRAI(T2, T2, 1));
         emitir(SRAI(T3, S4, 2));
-        emitir(SUB (S5, T2, T3));                       // x de la ventana
+        emitir(SUB (S5, T2, T3));
         emitir(ADD (T2, A3, A5));
         emitir(SRAI(T2, T2, 1));
         emitir(SRAI(T3, S4, 1));
-        emitir(SUB (S6, T2, T3));                       // y de la ventana
+        emitir(SUB (S6, T2, T3));
         emitir(ADDI(S7, S1, VR_RECORTE));
-        emitir(ADDI(S8, X0, 0));                        // r
-        emitir(ADDI(S9, X0, 0));                        // r * alto
+        emitir(ADDI(S8, X0, 0));
+        emitir(ADDI(S9, X0, 0));
         emitir(ADDI(A7, X0, 60));
         emitir(ADDI(GP, X0, 80));
         L_rc_fila = pc_ens;
         emitir(ANDI(T0, S8, 1));
         BNEZ(T0, L_rc_impar);
-        emitir(ADDI(S10, X0, 0));                       // palabra nueva en filas pares
+        emitir(ADDI(S10, X0, 0));
         emitir(ADDI(T5, X0, 1));
         J(L_rc_mb);
         L_rc_impar = pc_ens;
         emitir(LUI(T5, 32'h00010000));
         L_rc_mb = pc_ens;
         emitir(SRAI(T0, S9, 5));
-        emitir(ADD (T0, T0, S6));                       // y en la mascara
+        emitir(ADD (T0, T0, S6));
         BGEU_A(T0, A7, L_rc_fila_fin);
         emitir(SLLI(T1, T0, 6));
         emitir(SLLI(T2, T0, 4));
         emitir(ADD (T1, T1, T2));
-        emitir(ADD (T1, T1, S3));                       // &etiquetas[80 y]
-        emitir(ADDI(T2, X0, 0));                        // c
-        emitir(ADDI(T3, X0, 0));                        // c * alto
+        emitir(ADD (T1, T1, S3));
+        emitir(ADDI(T2, X0, 0));
+        emitir(ADDI(T3, X0, 0));
         L_rc_col = pc_ens;
         emitir(SRAI(T4, T3, 5));
-        emitir(ADD (T4, T4, S5));                       // x en la mascara
+        emitir(ADD (T4, T4, S5));
         BGEU_A(T4, GP, L_rc_col_sig);
         emitir(ADD (T6, T1, T4));
         emitir(LBU (T6, T6, 0));
-        BNE_A(T6, A6, L_rc_col_sig);                    // solo pixeles de esta mancha
+        BNE_A(T6, A6, L_rc_col_sig);
         emitir(OR  (S10, S10, T5));
         L_rc_col_sig = pc_ens;
         emitir(SLLI(T5, T5, 1));
@@ -868,11 +809,7 @@ task programa_vigia;
         BLT_A(S8, T0, L_rc_fila);
         RET;
 
-        // =====================================================================
-        // RED BINARIA (a0 = recorte, a1 = 0 con cpop / 1 sin cpop) -> a0 = clase
-        // Capa oculta: 64 x [ sum POPCOUNT(XNOR(x, w)) >= T ]
-        // Capa de salida: o_k = B2_k + suma de W2_kj con a_j = 1; argmax
-        // =====================================================================
+        // red binaria
         L_red = pc_ens;
         emitir(ADDI(A2, A0, 0));
         LA(T1, T_w1);
@@ -881,14 +818,14 @@ task programa_vigia;
         emitir(ADDI(A5, X0, 0));
         emitir(ADDI(TP, X0, 0));
         BNEZ(A1, L_red_rv);
-        // ---- con XNOR (tabla OP_R2) y CPOP (tabla OP_R3): 5 instrucciones por palabra ----
+        // con XNOR y CPOP
         L_rx_neur = pc_ens;
         emitir(ADDI(T0, X0, 0));
         for (vw = 0; vw < 16; vw = vw + 1) begin
             emitir(LW (T2, A2, 4 * vw));
             emitir(LW (T5, T1, 4 * vw));
-            emitir(XNOR(T2, T2, T5));                  // OP_R2: xnor
-            emitir(CPOP(T2, T2));                      // OP_R3: cpop
+            emitir(XNOR(T2, T2, T5));
+            emitir(CPOP(T2, T2));
             emitir(ADD(T0, T0, T2));
         end
         emitir(ADDI(T1, T1, 64));
@@ -896,7 +833,7 @@ task programa_vigia;
         emitir(ADDI(T4, X0, 64));
         BLT_A(TP, T4, L_rx_neur);
         J(L_red_salida);
-        // ---- sin cpop: XOR, NOT y conteo de bits por software (17 instrucciones por palabra) ----
+        // sin CPOP
         L_red_rv = pc_ens;
         LI(S4, 32'h55555555);
         LI(S5, 32'h33333333);
@@ -927,18 +864,18 @@ task programa_vigia;
         UMBRAL_Y_BIT;
         emitir(ADDI(T4, X0, 64));
         BLT_A(TP, T4, L_rr_neur);
-        // ---- capa de salida ----
+        // capa de salida
         L_red_salida = pc_ens;
         LA(T1, T_w2);
         LA(T3, T_b2);
-        emitir(ADDI(A6, X0, 0));                        // k
+        emitir(ADDI(A6, X0, 0));
         emitir(ADDI(A7, S1, VR_PUNT));
-        emitir(LUI (S8, 32'h80000000));                 // mejor puntuacion
-        emitir(ADDI(S9, X0, 0));                        // mejor clase
+        emitir(LUI (S8, 32'h80000000));
+        emitir(ADDI(S9, X0, 0));
         L_rs_k = pc_ens;
-        emitir(LW  (T0, T3, 0));                        // B2[k]
+        emitir(LW  (T0, T3, 0));
         emitir(ADDI(T2, A4, 0));
-        emitir(ADDI(T4, X0, 0));                        // j
+        emitir(ADDI(T4, X0, 0));
         L_rs_j = pc_ens;
         emitir(ANDI(T5, T2, 1));
         BEQZ(T5, L_rs_j0);
@@ -969,16 +906,7 @@ task programa_vigia;
         MV(A0, S9);
         RET;
 
-        // =====================================================================
-        // SEGUIMIENTO, VOTO ENTRE CUADROS Y REGLAS PERIMETRALES
-        // Cada mancha se empareja con la pista mas cercana (distancia
-        // Manhattan de centro y pies). La pista junta votos: +1 cada cuadro
-        // en que la red dice "persona", -1 cuando dice otra cosa. Con
-        // VOTO_MIN votos la mancha es PERSONA CONFIRMADA y entran las reglas:
-        // cruzar la linea cuenta entrada o salida; el sentido prohibido es
-        // alarma. Pies dentro de la zona PERM_MIN cuadros seguidos es alarma
-        // de intrusion.
-        // =====================================================================
+        // seguimiento
         L_seguimiento = pc_ens;
         emitir(ADDI(SP, SP, -16));
         emitir(SW  (RA, SP, 0));
@@ -986,29 +914,28 @@ task programa_vigia;
         emitir(ADDI(T1, X0, MAX_PISTAS));
         L_sg_des = pc_ens;
         emitir(LW  (T2, T0, 28));
-        emitir(ANDI(T2, T2, -3));                       // quita "emparejada"
+        emitir(ANDI(T2, T2, -3));
         emitir(SW  (T2, T0, 28));
         emitir(ADDI(T0, T0, 32));
         emitir(ADDI(T1, T1, -1));
         BNEZ(T1, L_sg_des);
         emitir(SW  (X0, S1, VR_EN_ZONA));
         emitir(SW  (X0, S1, VR_VISTAS));
-        // dos pasadas: en la 0 las manchas que la red clasifico como persona (suman un
-        // voto); en la 1 las demas (le restan un voto a la pista que tengan cerca)
-        emitir(ADDI(S10, X0, 0));                       // pasada
+        // dos pasadas
+        emitir(ADDI(S10, X0, 0));
         L_sg_pasada = pc_ens;
         emitir(LW  (S4, S1, VR_NBLOBS));
         emitir(ADDI(S5, S1, VR_BLOBS));
         L_sg_blob = pc_ens;
         BEQZ(S4, L_sg_pasada_fin);
         emitir(LW  (T0, S5, 24));
-        emitir(SLTU(T0, X0, T0));                       // 0 = la red dijo persona, 1 = otra cosa
-        BNE_A(T0, S10, L_sg_blob_sig);                  // cada pasada toma las suyas
+        emitir(SLTU(T0, X0, T0));
+        BNE_A(T0, S10, L_sg_blob_sig);
         emitir(LW  (T0, S5, 0));
         emitir(LW  (T1, S5, 8));
         emitir(ADD (S6, T0, T1));
-        emitir(SRLI(S6, S6, 1));                        // centro x
-        emitir(LW  (S7, S5, 12));                       // pies
+        emitir(SRLI(S6, S6, 1));
+        emitir(LW  (S7, S5, 12));
         emitir(ADDI(S8, X0, 0));
         emitir(ADDI(S9, X0, DIST_MAX));
         emitir(ADDI(T0, S1, VR_PISTAS));
@@ -1034,8 +961,8 @@ task programa_vigia;
         emitir(ADDI(T1, T1, -1));
         BNEZ(T1, L_sg_busca);
         BNEZ(S8, L_sg_tiene);
-        BNEZ(S10, L_sg_blob_sig);                       // no es persona y no hay pista cerca: nada que hacer
-        emitir(ADDI(T0, S1, VR_PISTAS));                // pista nueva
+        BNEZ(S10, L_sg_blob_sig);
+        emitir(ADDI(T0, S1, VR_PISTAS));
         emitir(ADDI(T1, X0, MAX_PISTAS));
         L_sg_libre = pc_ens;
         emitir(LW  (T2, T0, 0));
@@ -1046,7 +973,7 @@ task programa_vigia;
         J(L_sg_blob_sig);
         L_sg_crea = pc_ens;
         MV(S8, T0);
-        emitir(SW  (X0, S8, 0));                        // nace con 0 votos; abajo recibe el primero
+        emitir(SW  (X0, S8, 0));
         emitir(LW  (T2, S1, VR_SIG_ID));
         emitir(SW  (T2, S8, 4));
         emitir(ADDI(T2, T2, 1));
@@ -1054,11 +981,11 @@ task programa_vigia;
         emitir(LW  (T2, S1, VR_LINEA));
         emitir(SLT (T3, S6, T2));
         emitir(XORI(T3, T3, 1));
-        emitir(SW  (T3, S8, 16));                       // lado inicial
+        emitir(SW  (T3, S8, 16));
         emitir(SW  (X0, S8, 20));
         emitir(SW  (X0, S8, 28));
         L_sg_tiene = pc_ens;
-        // ---- voto: +1 si la red dijo persona (hasta VOTO_MAX), -1 si no ----
+        // voto
         emitir(LW  (T2, S8, 0));
         BNEZ(S10, L_sg_resta);
         emitir(ADDI(T2, T2, 1));
@@ -1068,7 +995,7 @@ task programa_vigia;
         L_sg_resta = pc_ens;
         emitir(ADDI(T2, T2, -1));
         L_sg_votado = pc_ens;
-        emitir(SW  (T2, S8, 0));                        // con 0 votos la pista queda libre
+        emitir(SW  (T2, S8, 0));
         BEQZ(T2, L_sg_blob_sig);
         emitir(SW  (S6, S8, 8));
         emitir(SW  (S7, S8, 12));
@@ -1077,23 +1004,23 @@ task programa_vigia;
         emitir(ORI (T3, T3, 2));
         emitir(SW  (T3, S8, 28));
         emitir(ADDI(T3, X0, VOTO_MIN));
-        BLT_A(T2, T3, L_sg_blob_sig);                   // todavia no junta los votos
+        BLT_A(T2, T3, L_sg_blob_sig);
         emitir(LW  (T2, S8, 4));
         emitir(SLLI(T2, T2, 8));
-        emitir(ORI (T2, T2, 2));                        // bit 1 = persona confirmada
-        emitir(SW  (T2, S5, 28));                       // id de la pista en la mancha
+        emitir(ORI (T2, T2, 2));
+        emitir(SW  (T2, S5, 28));
         emitir(LW  (T2, S1, VR_VISTAS));
         emitir(ADDI(T2, T2, 1));
-        emitir(SW  (T2, S1, VR_VISTAS));                // personas a la vista en este cuadro
-        // ---- cruce de la linea ----
+        emitir(SW  (T2, S1, VR_VISTAS));
+        // cruce de la linea
         emitir(LW  (T2, S1, VR_LINEA));
         emitir(SLT (T3, S6, T2));
-        emitir(XORI(T3, T3, 1));                        // lado nuevo
+        emitir(XORI(T3, T3, 1));
         emitir(LW  (T4, S8, 16));
         BEQ_A(T3, T4, L_sg_zona);
         emitir(SW  (T3, S8, 16));
         BEQZ(T3, L_sg_salida);
-        emitir(LW  (T5, S1, VR_ENTRADAS));              // izquierda -> derecha
+        emitir(LW  (T5, S1, VR_ENTRADAS));
         emitir(ADDI(T5, T5, 1));
         emitir(SW  (T5, S1, VR_ENTRADAS));
         emitir(ADDI(A0, X0, 1));
@@ -1102,7 +1029,7 @@ task programa_vigia;
         emitir(LW  (T5, S1, VR_SENTIDO));
         BNEZ(T5, L_sg_zona);
         J(L_sg_cruce_prohibido);
-        L_sg_salida = pc_ens;                           // derecha -> izquierda
+        L_sg_salida = pc_ens;
         emitir(LW  (T5, S1, VR_SALIDAS));
         emitir(ADDI(T5, T5, 1));
         emitir(SW  (T5, S1, VR_SALIDAS));
@@ -1113,12 +1040,12 @@ task programa_vigia;
         BEQZ(T5, L_sg_zona);
         L_sg_cruce_prohibido = pc_ens;
         emitir(LW  (T5, S1, VR_ALARMA));
-        emitir(ORI (T5, T5, 32'h21));                   // alarma + motivo cruce
+        emitir(ORI (T5, T5, 32'h21));
         emitir(SW  (T5, S1, VR_ALARMA));
         emitir(ADDI(A0, X0, 3));
         emitir(LW  (A1, S8, 4));
         CALL(L_evento);
-        // ---- zona: pies dentro del rectangulo ----
+        // zona
         L_sg_zona = pc_ens;
         emitir(LW  (T2, S1, VR_ZONA));
         emitir(ANDI(T3, T2, 255));
@@ -1143,7 +1070,7 @@ task programa_vigia;
         emitir(ADDI(T4, X0, PERM_MIN));
         BNE_A(T3, T4, L_sg_blob_sig);
         emitir(LW  (T5, S1, VR_ALARMA));
-        emitir(ORI (T5, T5, 32'h11));                   // alarma + motivo zona
+        emitir(ORI (T5, T5, 32'h11));
         emitir(SW  (T5, S1, VR_ALARMA));
         emitir(ADDI(A0, X0, 4));
         emitir(LW  (A1, S8, 4));
@@ -1159,7 +1086,7 @@ task programa_vigia;
         emitir(ADDI(S10, S10, 1));
         emitir(ADDI(T0, X0, 2));
         BLT_A(S10, T0, L_sg_pasada);
-        L_sg_perdidas = pc_ens;                         // pistas sin mancha: se olvidan a los 5 cuadros
+        L_sg_perdidas = pc_ens;
         emitir(ADDI(T0, S1, VR_PISTAS));
         emitir(ADDI(T1, X0, MAX_PISTAS));
         L_sg_p = pc_ens;
@@ -1182,7 +1109,7 @@ task programa_vigia;
         emitir(ADDI(SP, SP, 16));
         RET;
 
-        // ---- evento(a0 = tipo, a1 = id): registro en RAM + consola ----
+        // evento
         L_evento = pc_ens;
         emitir(ADDI(SP, SP, -16));
         emitir(SW  (RA, SP, 0));
@@ -1220,7 +1147,7 @@ task programa_vigia;
         emitir(ADDI(SP, SP, 16));
         RET;
 
-        // ---- dibujar: zona, linea, recuadros, letrero, displays y LED ----
+        // dibujar
         L_dibujar = pc_ens;
         emitir(LW  (T0, S1, VR_ZONA));
         emitir(SW  (T0, S0, PV_ZONA));
@@ -1230,8 +1157,8 @@ task programa_vigia;
         emitir(LW  (T1, S1, VR_NBLOBS));
         emitir(ADDI(T2, S1, VR_BLOBS));
         emitir(ADDI(T3, S0, PV_CAJA0));
-        emitir(ADDI(T4, X0, 0));                        // colores
-        emitir(ADDI(T5, X0, 0));                        // i
+        emitir(ADDI(T4, X0, 0));
+        emitir(ADDI(T5, X0, 0));
         L_dj_c = pc_ens;
         BGE_A(T5, T1, L_dj_fin);
         emitir(LW  (T0, T2, 0));
@@ -1245,12 +1172,12 @@ task programa_vigia;
         emitir(SLLI(T6, T6, 24));
         emitir(OR  (T0, T0, T6));
         emitir(SW  (T0, T3, 0));
-        emitir(LW  (T6, T2, 28));                       // bit 1 = persona confirmada, bit 0 = en zona
-        emitir(ADDI(A0, X0, 3));                        // gris: no es persona
+        emitir(LW  (T6, T2, 28));
+        emitir(ADDI(A0, X0, 3));
         emitir(ANDI(A1, T6, 2));
         BEQZ(A1, L_dj_col);
         emitir(ANDI(T6, T6, 1));
-        emitir(ADDI(A0, T6, 1));                        // verde o rojo (en zona)
+        emitir(ADDI(A0, T6, 1));
         L_dj_col = pc_ens;
         emitir(SLLI(A1, T5, 1));
         emitir(SLL (A0, A0, A1));
@@ -1264,9 +1191,9 @@ task programa_vigia;
         emitir(LW  (T0, S1, VR_ALARMA));
         emitir(ANDI(T0, T0, 1));
         BEQZ(T0, L_dj_sin);
-        emitir(ADDI(T0, X0, 3));                        // "INTRUSO" parpadeando
+        emitir(ADDI(T0, X0, 3));
         L_dj_sin = pc_ens;
-        // barra de estado del monitor: personas a la vista (un digito) y eventos (dos digitos)
+        // barra de estado
         emitir(LW  (T1, S1, VR_VISTAS));
         emitir(ADDI(T2, X0, 9));
         emitir(MINU(T1, T1, T2));
@@ -1274,17 +1201,17 @@ task programa_vigia;
         emitir(OR  (T0, T0, T1));
         emitir(LW  (T1, S1, VR_EVENTOS));
         emitir(ADDI(T2, X0, 100));
-        emitir(REMU(T1, T1, T2));                       // eventos de 0 a 99
+        emitir(REMU(T1, T1, T2));
         emitir(ADDI(T2, X0, 10));
-        emitir(DIVU(T3, T1, T2));                       // decenas
-        emitir(REMU(T1, T1, T2));                       // unidades
+        emitir(DIVU(T3, T1, T2));
+        emitir(REMU(T1, T1, T2));
         emitir(SLLI(T3, T3, 4));
         emitir(OR  (T1, T1, T3));
         emitir(SLLI(T1, T1, 16));
         emitir(OR  (T0, T0, T1));
         emitir(SW  (T0, S0, PV_LETRERO));
-        emitir(LW  (T0, S1, VR_ENTRADAS));              // HEX5-4 entradas, HEX3-2 salidas,
-        emitir(ANDI(T0, T0, 255));                      // HEX1 personas en zona, HEX0 manchas
+        emitir(LW  (T0, S1, VR_ENTRADAS));
+        emitir(ANDI(T0, T0, 255));
         emitir(SLLI(T0, T0, 16));
         emitir(LW  (T1, S1, VR_SALIDAS));
         emitir(ANDI(T1, T1, 255));
@@ -1298,8 +1225,8 @@ task programa_vigia;
         emitir(ANDI(T1, T1, 15));
         emitir(OR  (T0, T0, T1));
         emitir(SW  (T0, S0, PV_HEX));
-        emitir(LW  (T0, S1, VR_ALARMA));                // LED9 alarma (parpadea), LED7 camara OK,
-        emitir(ANDI(T0, T0, 1));                        // LED0 alarma fija
+        emitir(LW  (T0, S1, VR_ALARMA));
+        emitir(ANDI(T0, T0, 1));
         emitir(LW  (T1, S1, VR_CUADRO));
         emitir(SRLI(T1, T1, 1));
         emitir(AND (T1, T1, T0));
@@ -1308,36 +1235,34 @@ task programa_vigia;
         emitir(LW  (T1, S1, VR_CAM_OK));
         emitir(SLLI(T1, T1, 7));
         emitir(OR  (T0, T0, T1));
-        emitir(LW  (T1, S1, VR_CUADRO));                // LED6 parpadea con cada cuadro
+        emitir(LW  (T1, S1, VR_CUADRO));
         emitir(ANDI(T1, T1, 1));
         emitir(SLLI(T1, T1, 6));
         emitir(OR  (T0, T0, T1));
         emitir(SW  (T0, S0, PV_LEDS));
         RET;
 
-        // =====================================================================
-        // DATOS EN LA ROM
-        // =====================================================================
-        T_sccb = pc_ens;                                // {registro, valor}: tabla completa de la placa
+        // datos
+        T_sccb = pc_ens;
 `include "tabla_camara.vh"
         emitir(32'hFFFFFFFF);
-        T_sccb_sim = pc_ens;                            // lo mismo, pero solo modo y reloj (simulacion)
-        emitir(32'h1101);                               // CLKRC: preescala entre 2
-        emitir(32'h6B4A);                               // DBLV: PLL x4 -> 31 cuadros por segundo
-        emitir(32'h1200);                               // COM7: YUV
-        emitir(32'h3A04);                               // TSLB: orden Y U Y V
-        emitir(32'h3DC0);                               // COM13: gamma, saturacion automatica
-        emitir(32'h40C0);                               // COM15: rango completo 00..FF
-        emitir(32'h0C04);                               // COM3: escalado dentro del sensor
-        emitir(32'h3E19);                               // COM14: escalado manual, PCLK entre 2
-        emitir(32'h1500);                               // COM10: VSYNC positivo, PCLK libre
+        T_sccb_sim = pc_ens;
+        emitir(32'h1101);
+        emitir(32'h6B4A);
+        emitir(32'h1200);
+        emitir(32'h3A04);
+        emitir(32'h3DC0);
+        emitir(32'h40C0);
+        emitir(32'h0C04);
+        emitir(32'h3E19);
+        emitir(32'h1500);
         emitir(32'hFFFFFFFF);
 
-        T_zonas = pc_ens;                               // {y1, x1, y0, x0}, linea x
-        emitir({8'd56, 8'd76, 8'd8,  8'd44}); emitir(32'd40);   // SW1..0 = 0: zona a la derecha
-        emitir({8'd56, 8'd36, 8'd8,  8'd4});  emitir(32'd40);   // 1: zona a la izquierda
-        emitir({8'd56, 8'd56, 8'd20, 8'd24}); emitir(32'd20);   // 2: zona central
-        emitir({8'd59, 8'd79, 8'd0,  8'd40}); emitir(32'd40);   // 3: media pantalla derecha
+        T_zonas = pc_ens;
+        emitir({8'd56, 8'd76, 8'd8,  8'd44}); emitir(32'd40);
+        emitir({8'd56, 8'd36, 8'd8,  8'd4});  emitir(32'd40);
+        emitir({8'd56, 8'd56, 8'd20, 8'd24}); emitir(32'd20);
+        emitir({8'd59, 8'd79, 8'd0,  8'd40}); emitir(32'd40);
 
         T_w1 = pc_ens;
         for (vw = 0; vw < 1024; vw = vw + 1) emitir(VIG_W1[vw]);
@@ -1349,7 +1274,7 @@ task programa_vigia;
         T_b2 = pc_ens;
         for (vw = 0; vw < 3; vw = vw + 1) emitir(VIG_B2[vw]);
         T_prueba = pc_ens;
-        for (vw = 0; vw < 48; vw = vw + 1) emitir(VIG_PRUEBA[vw]);   // 3 siluetas de 16 palabras
+        for (vw = 0; vw < 48; vw = vw + 1) emitir(VIG_PRUEBA[vw]);
 
         T_tab_eventos = pc_ens;
         emitir(T_ev0); emitir(T_ev1); emitir(T_ev2); emitir(T_ev3); emitir(T_ev4);

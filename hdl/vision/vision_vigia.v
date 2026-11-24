@@ -1,32 +1,15 @@
 `timescale 1ns / 1ps
-// ============================================================
-// TUBERIA DE VISION DE NEURA-32 VIGIA (hardware, sin procesador)
-//
-//   OV7670 -> cam_capture --brillo--> memoria Y (6 bits) ----------+
-//      (YUV 4:2:2,     |---color--> memoria UV (5 + 5 bits) -------+-> vga_draw -> VGA
-//       320 x 240,     |---brillo--> block_avg (80 x 60) -> fondo_mascara
-//       ~31 cuadros/s) |                         mascara (CPU) <---+   |
-//                      |                         mascara (VGA) ----+---+
-//                      +--> pc_view (video reducido por JTAG a la PC)
-//
-// El procesador lee la mascara (dos bancos) y decide; el resultado lo
-// pinta escribiendo zona, linea, cajas y letrero en registros_vision.
-//
-// La camara se muestrea con el reloj de 50 MHz (cam_capture); todo lo
-// demas corre con el de 25 MHz, que sale de dividir el de 50 entre 2.
-//
-// Placa:      width = 320, height = 240, block_log2 = 2 (bloques de 4 x 4), vga_scale = 1
-// Simulacion: width = 160, height = 120, block_log2 = 1 (bloques de 2 x 2), vga_scale = 2
-// ============================================================
+
+// vision
 module vision_vigia #(
     parameter width      = 320,
     parameter height     = 240,
     parameter block_log2 = 2,
     parameter vga_scale  = 1
 ) (
-    input  wire        clk,          // 25 MHz
-    input  wire        clk50,        // 50 MHz: muestreo de la camara
-    input  wire        rst,          // activo en alto (el del SoC)
+    input  wire        clk,
+    input  wire        clk50,
+    input  wire        rst,
 
     // camara
     input  wire        cam_pclk,
@@ -34,10 +17,10 @@ module vision_vigia #(
     input  wire        cam_vsync,
     input  wire [7:0]  cam_d,
 
-    // configuracion (registros_vision)
+    // configuracion
     input  wire        habilita,
-    input  wire        cam_half,     // la camara manda el doble de tamano: tomar 1 de cada 2
-    input  wire [1:0]  cam_fmt,      // orden de los bytes (ver cam_capture)
+    input  wire        cam_half,
+    input  wire [1:0]  cam_fmt,
     input  wire [7:0]  umbral,
     input  wire [3:0]  alfa,
     input  wire        aprender,
@@ -56,7 +39,7 @@ module vision_vigia #(
     input  wire [3:0]  hud_personas,
     input  wire [7:0]  hud_eventos,
 
-    // lectura de la mascara por el CPU (sincrona, direccion de palabra 0..1199)
+    // lectura del CPU
     input  wire [10:0] cpu_msk_dir,
     output wire [31:0] cpu_msk_dato,
 
@@ -67,9 +50,9 @@ module vision_vigia #(
     output wire        vga_hs,
     output wire        vga_vs
 );
-    wire rst_n = ~rst;               // los modulos nuevos usan el reinicio de la clase (activo en bajo)
+    wire rst_n = ~rst;
 
-    // ---------------- captura (50 MHz) ----------------
+    // captura
     wire        pix_valid, uv_valid, frame_done;
     wire [8:0]  pix_x;
     wire [7:0]  pix_y, pix_lum, uv_x, uv_u, uv_v;
@@ -84,8 +67,7 @@ module vision_vigia #(
         .byte_strobe(), .pclk_rise(), .href_s(), .vsync_s()
     );
 
-    // ---------------- memorias de video ----------------
-    // Y: un brillo de 6 bits por pixel.  UV: un color {U, V} de 5 + 5 bits por bloque de 2 x 2.
+    // memorias de video
     wire [16:0] y_addr_wr  = pix_y * width + pix_x;
     wire [14:0] uv_addr_wr = uv_y * (width / 2) + uv_x;
     wire [16:0] y_addr_rd;
@@ -103,7 +85,7 @@ module vision_vigia #(
         .addr_rd(uv_addr_rd), .data_out(uv_data_rd)
     );
 
-    // ---------------- promedio por bloques, fondo y mascara ----------------
+    // promedio
     wire        avg_valid;
     wire [6:0]  avg_x;
     wire [5:0]  avg_y;
@@ -129,13 +111,13 @@ module vision_vigia #(
         .vga_we(vmsk_we), .vga_dir(vmsk_dir_esc), .vga_dato(vmsk_dato)
     );
 
-    // dos bancos de 1200 palabras: el CPU lee uno mientras la camara llena el otro
+    // dos bancos
     memoria_doble_puerto #(.addr_width(12), .data_width(32), .palabras(2400)) mem_mascara (
         .clk(clk), .we(msk_we), .dir_esc(msk_dir_esc), .dato_esc(msk_dato_esc),
         .dir_lec(banco_lec ? ({1'b0, cpu_msk_dir} + 12'd1200) : {1'b0, cpu_msk_dir}), .dato_lec(cpu_msk_dato)
     );
 
-    // la misma mascara, un bit por celda: una copia la lee el monitor y otra la PC
+    // mascara
     wire [12:0] vmsk_addr_rd, pc_msk_addr;
     wire        vmsk_data_rd, pc_msk_data, tck;
 
@@ -149,7 +131,7 @@ module vision_vigia #(
         .clk_rd(tck), .addr_rd(pc_msk_addr), .data_out(pc_msk_data)
     );
 
-    // ---------------- VGA ----------------
+    // VGA
     wire [9:0] h, v;
     wire       hs, vs, activo, cuadro_vga;
 
@@ -168,10 +150,7 @@ module vision_vigia #(
         .vga_r(vga_r), .vga_g(vga_g), .vga_b(vga_b), .vga_hs(vga_hs), .vga_vs(vga_vs)
     );
 
-    // ---------------- vista en la PC (JTAG) ----------------
-    // Datos que dibuja la PC, 384 bits:
-    //   [255:0] cajas  [271:256] colores  [303:272] zona  [312:304] linea  [314:313] letrero
-    //   [318:315] personas  [326:319] eventos  [342:327] cuadros  [355:343] celdas de silueta
+    // vista en la PC
     wire [383:0] meta = {28'd0, pixeles_fg, cuadros, hud_eventos, hud_personas,
                          letrero, linea, zona, colores, cajas};
 

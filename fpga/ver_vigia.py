@@ -1,16 +1,3 @@
-"""NEURA-32 Vigia en la PC: el video de la camara y lo que detecta el procesador, en vivo.
-
-La FPGA manda por el cable USB-Blaster (JTAG) el video reducido y entrelazado, la mascara de
-movimiento y los recuadros que calculo el procesador; aqui se arma la imagen y se dibujan
-los recuadros con su letrero, la silueta, la zona, la linea y la alarma, igual que en el monitor.
-
-Uso (desde la carpeta fpga, con la placa grabada):  python ver_vigia.py
-Teclas:
-    M      ver u ocultar toda la mascara de movimiento
-    S      suavizado encendido / apagado
-    F      guarda una foto en fotos/
-    Esc    salir
-"""
 import os
 import subprocess
 import sys
@@ -22,7 +9,7 @@ from PIL import ImageTk
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(AQUI, "..", "sw"))
-from video_pc import Video, dibujar, hex_a_bits, leer_datos   # noqa: E402
+from video_pc import Video, dibujar, hex_a_bits, leer_datos
 
 QUARTUS_STP = r"C:\intelFPGA_lite\24.1std\quartus\bin64\quartus_stp.exe"
 
@@ -53,7 +40,6 @@ class Visor:
         threading.Thread(target=self.leer, daemon=True).start()
         self.raiz.after(30, self.pintar)
 
-    # ---------------- lectura de la FPGA en otro hilo ----------------
     def leer(self):
         while self.vivo:
             try:
@@ -82,7 +68,7 @@ class Visor:
                         bits = hex_a_bits(salida.readline(), 384)
                         with self.cerradura:
                             self.datos = leer_datos(bits)
-            except Exception:                    # si quartus_stp se cae se vuelve a lanzar
+            except Exception:
                 pass
             self.cortar()
             time.sleep(0.5)
@@ -95,7 +81,7 @@ class Visor:
                 pass
             self.proc = None
 
-    # ---------------- teclas ----------------
+    # teclas
     def tecla(self, ev):
         k = ev.keysym.lower()
         if k == "escape":
@@ -109,7 +95,7 @@ class Visor:
             nombre = time.strftime("fotos/vigia_%Y%m%d_%H%M%S.png")
             self.componer(960).save(os.path.join(AQUI, nombre))
 
-    # ---------------- imagen ----------------
+    # imagen
     def componer(self, ancho):
         escala = max(2, ancho // 160)
         with self.cerradura:
@@ -135,7 +121,7 @@ class Visor:
         self.foto_tk = ImageTk.PhotoImage(img)
         self.lienzo.configure(image=self.foto_tk)
         if sin_senal and t and time.time() - t[-1] > 6.0:
-            self.cortar()                        # el hilo de lectura lo vuelve a lanzar
+            self.cortar()
             with self.cerradura:
                 self.tiempos = []
         self.raiz.after(33, self.pintar)
