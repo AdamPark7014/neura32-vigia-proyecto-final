@@ -38,9 +38,13 @@ module vga_draw #(
 );
 
 	// ciclo 0
+	localparam suave = (scale == 1);
 	wire [9:0] vx = h >> scale;
 	wire [9:0] vy = v >> scale;
-	assign y_addr = active_in ? (vy * width + vx) : 17'd0;
+	// interpolacion: renglon y columna siguientes en los pixeles impares
+	wire [9:0] vx_i = (suave && h[0] && (vx < width - 1)) ? vx + 10'd1 : vx;
+	wire [9:0] vy_i = (suave && v[0] && (vy < 239)) ? vy + 10'd1 : vy;
+	assign y_addr = active_in ? (vy_i * width + vx_i) : 17'd0;
 	assign uv_addr = active_in ? ((vy >> 1) * (width / 2) + (vx >> 1)) : 15'd0;
 
 	// tres renglones
@@ -329,8 +333,28 @@ module vga_draw #(
 		col2 <= ch_col;
 	end
 
+	// renglon anterior
+	(* ramstyle = "M9K" *) reg [5:0] linea_ant [0:639];
+	reg [5:0] ant_q, ant_q2, y2_ant;
+	always @(posedge clk)
+	begin
+		if(act2 && !v2[0])
+		begin
+			linea_ant[h2] <= y2;
+		end
+		ant_q <= linea_ant[h1];
+		ant_q2 <= ant_q;
+		y2_ant <= y2;
+	end
+
+	// promedio de vecinos
+	wire [6:0] suma_h = h2[0] ? ({1'b0, y2} + {1'b0, y2_ant}) : {y2, 1'b0};
+	wire [6:0] suma_a = h2[0] ? ({1'b0, ant_q} + {1'b0, ant_q2}) : {ant_q, 1'b0};
+	wire [7:0] y_suave = v2[0] ? ({1'b0, suma_h} + {1'b0, suma_a}) : {suma_h, 1'b0};
+	wire [7:0] y_8 = suave ? y_suave : {y2, 2'b00};
+
 	// YUV a RGB
-	wire signed [10:0] yy = {3'b000, y2, 2'b10};
+	wire signed [10:0] yy = {3'b000, y_8} + 11'sd2;
 	wire signed [10:0] du = $signed({3'b000, uv2[9:5], 3'b100}) - 11'sd128;
 	wire signed [10:0] dv = $signed({3'b000, uv2[4:0], 3'b100}) - 11'sd128;
 

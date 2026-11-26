@@ -294,7 +294,8 @@ quartus_stp -t cargar_programa.tcl programa_demo.txt
 5. **Monitor** (`vga_sincronia.v`, `vga_draw.v`). 640 × 480 a 62.5 Hz (784 × 510 ciclos), justo dos cuadros del
    monitor por cada cuadro de la cámara. El barrido se engancha a la cámara: el renglón 0 se escribe cuando el
    monitor va en su renglón 16, así el monitor nunca lee el renglón que se está escribiendo y no hay cortes
-   aunque la cámara se mueva. Convierte YUV a RGB con sumas y
+   aunque la cámara se mueva. Al ampliar 320 × 240 a 640 × 480 promedia cada pixel con sus vecinos (un
+   renglón guardado en una M9K), así la imagen no se ve en bloques. Convierte YUV a RGB con sumas y
    corrimientos y trama el resultado (2 × 2) para el DAC de 4 bits de la placa. Encima dibuja el contorno de
    la silueta de cada persona, la línea virtual, la zona prohibida, hasta ocho recuadros con su letrero
    (`PERSONA` en verde, `INTRUSO` en rojo, `OBJETO` en gris, con una fuente de 8 × 16), el letrero grande de
@@ -534,13 +535,13 @@ tiempo de cada cuadro y la respuesta llega en el cuadro siguiente.
 
 | Recurso | Usado | Disponible |
 |---|---|---|
-| Elementos lógicos | 9 130 (18 %) | 49 760 |
-| Registros | 4 035 | |
-| Bloques de memoria M9K | 163 (90 %) | 182 |
-| Bits de memoria | 1 211 136 (72 %) | 1 677 312 |
+| Elementos lógicos | 9 237 (19 %) | 49 760 |
+| Registros | 4 047 | |
+| Bloques de memoria M9K | 164 (90 %) | 182 |
+| Bits de memoria | 1 214 976 (72 %) | 1 677 312 |
 | Multiplicadores de 9 bits | 6 | 288 |
 | Pines | 121 | 360 |
-| Frecuencia máxima del reloj de 25 MHz (modelo lento, 85 °C) | 35.03 MHz | se necesitan 25 MHz |
+| Frecuencia máxima del reloj de 25 MHz (modelo lento, 85 °C) | 35.01 MHz | se necesitan 25 MHz |
 
 La memoria es lo que más se ocupa: el video (brillo y color), las dos copias que se mandan a la PC, el
 fondo, las máscaras, las 4096 palabras de programa y las 4096 de datos.
