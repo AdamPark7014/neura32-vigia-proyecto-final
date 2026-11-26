@@ -118,5 +118,5 @@ registro de eventos:
   ok    red: puntuacion = referencia Verilog
   ok    tiempo real: cabe en un cuadro de la placa (800 000 ciclos)
   ok    sin instrucciones que no existan
-instrucciones=5558959 ciclos=23483842 CPI=4.22
+instrucciones=5556234 ciclos=23472034 CPI=4.22
 PRUEBAS: 31  ERRORES: 0
