@@ -50,14 +50,25 @@ module cam_capture #(
 	assign vsync_s = vsync_ff[1];
 	assign byte_strobe = pclk_rise & href_s;
 
-	wire href_fall = ~href_ff[1] & href_ff[2];
-	wire vsync_rise = vsync_ff[1] & ~vsync_ff[2];
+	// filtro contra pulsos falsos en VSYNC y HREF
+	reg [8:0] vs_cnt;
+	reg [4:0] hl_cnt;
+	always @(posedge clk)
+	begin
+		vs_cnt <= vsync_ff[1] ? (vs_cnt[8] ? vs_cnt : vs_cnt + 9'd1) : 9'd0;
+		hl_cnt <= href_ff[1] ? 5'd0 : ((hl_cnt == 5'd31) ? hl_cnt : hl_cnt + 5'd1);
+	end
+	wire vs_ok = vs_cnt[8];
+	wire vsync_rise = vsync_ff[1] && (vs_cnt == 9'd255);
+	wire href_fall = ~href_ff[1] && (hl_cnt == 5'd15);
+	wire byte_ok = pclk_rise & href_ff[1] & href_ff[2];
 
 	// posicion en el cuadro
 	reg [1:0] nbyte;
 	reg [9:0] x;
 	reg [9:0] y;
 	reg [7:0] u_hold;
+	reg con_bytes;
 
 	// tipo de byte
 	wire is_lum = (nbyte[0] == fmt[0]);
@@ -87,6 +98,7 @@ module cam_capture #(
 			x <= 10'd0;
 			y <= 10'd0;
 			u_hold <= 8'd128;
+			con_bytes <= 1'b0;
 			valid_new <= 1'b0;
 			valid_old <= 1'b0;
 			uvalid_new <= 1'b0;
@@ -115,23 +127,26 @@ module cam_capture #(
 				y <= 10'd0;
 			end else
 			begin
-				if(vsync_s)
+				if(vs_ok || vsync_rise)
 				begin
 					nbyte <= 2'd0;
 					x <= 10'd0;
 					y <= 10'd0;
+					con_bytes <= 1'b0;
 					done_new <= vsync_rise;
 				end else
 				begin
-					if(href_fall)
+					if(href_fall && con_bytes)
 					begin
 						nbyte <= 2'd0;
 						x <= 10'd0;
 						y <= y + 10'd1;
+						con_bytes <= 1'b0;
 					end else
 					begin
-						if(byte_strobe)
+						if(byte_ok)
 						begin
+							con_bytes <= 1'b1;
 							nbyte <= nbyte + 2'd1;
 							if(is_lum)
 							begin

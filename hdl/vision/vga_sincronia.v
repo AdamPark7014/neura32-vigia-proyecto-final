@@ -26,27 +26,27 @@ module vga_sincronia (
                              (dif < -(V_TOTAL / 2)) ? dif + V_TOTAL : dif;
     reg  signed [10:0] ajuste;
     reg  [1:0] buenos;
+    reg        primero;
     wire fin_linea = (h == H_TOTAL - 1);
     wire fin_cuadro = fin_linea && (v == V_TOTAL - 1);
-    wire salto = cam_inicio && ((err > 11'sd24) || (err < -11'sd24));
 
     always @(posedge clk) begin
         if (rst) begin
             h <= 10'd0; v <= 10'd0;
-            ajuste <= 11'sd0; buenos <= 2'd0;
+            ajuste <= 11'sd0; buenos <= 2'd0; primero <= 1'b1;
         end else begin
             h <= fin_linea ? 10'd0 : h + 10'd1;
-            if (salto) begin
+            if (cam_inicio && primero) begin
+                // solo el primer enganche salta
                 v <= V_META;
-                ajuste <= 11'sd0;
-                buenos <= 2'd0;
+                primero <= 1'b0;
             end else begin
                 if (cam_inicio) begin
                     ajuste <= err;
                     buenos <= ((err < 11'sd3) && (err > -11'sd3)) ? ((buenos == 2'd3) ? 2'd3 : buenos + 2'd1) : 2'd0;
                 end
                 if (fin_cuadro) begin
-                    // un renglon de mas o de menos por cuadro
+                    // un renglon de mas o de menos por cuadro, sin saltos
                     if (ajuste > 11'sd0) begin
                         ajuste <= ajuste - 11'sd1;
                     end else begin
