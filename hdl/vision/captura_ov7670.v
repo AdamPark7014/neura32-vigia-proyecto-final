@@ -28,11 +28,11 @@ module captura_ov7670 #(
 
     output reg         cuadro_inicio
 );
-    localparam VID_ANCHO = CAM_ANCHO >> VID_DECIM_LOG2;
-    localparam BLOQUE    = 1 << BLOQUE_LOG2;
-    localparam BLQ_ANCHO = CAM_ANCHO >> BLOQUE_LOG2;
-    localparam [9:0] MASK_V = (1 << VID_DECIM_LOG2) - 1;
-    localparam [9:0] MASK_B = BLOQUE - 1;
+    localparam VID_ANCHO = CAM_ANCHO >> VID_DECIM_LOG2;  // ancho del video
+    localparam BLOQUE    = 1 << BLOQUE_LOG2;  // tamaño del bloque
+    localparam BLQ_ANCHO = CAM_ANCHO >> BLOQUE_LOG2;  // bloques por renglón
+    localparam [9:0] MASK_V = (1 << VID_DECIM_LOG2) - 1;  // máscara de diezmado
+    localparam [9:0] MASK_B = BLOQUE - 1;  // máscara del bloque
 
     // sincronizadores
     reg [2:0] pclk_s, href_s, vsync_s;

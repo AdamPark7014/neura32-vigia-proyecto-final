@@ -14,11 +14,17 @@ module vga_sincronia (
     output wire       enganchado
 );
     // 784 x 510: dos cuadros del monitor por cada cuadro de la camara
-    localparam H_VIS = 640, H_FP = 16, H_SYNC = 96, H_BP = 32;
-    localparam V_VIS = 480, V_FP = 10, V_SYNC = 2,  V_BP = 18;
-    localparam H_TOTAL = H_VIS + H_FP + H_SYNC + H_BP;
-    localparam V_TOTAL = V_VIS + V_FP + V_SYNC + V_BP;
-    localparam V_META = 16;
+    localparam H_VIS = 640;  // pixeles visibles
+    localparam H_FP = 16;  // pórtico frontal
+    localparam H_SYNC = 96;  // pulso horizontal
+    localparam H_BP = 32;  // pórtico trasero
+    localparam V_VIS = 480;  // renglones visibles
+    localparam V_FP = 10;  // pórtico frontal
+    localparam V_SYNC = 2;  // pulso vertical
+    localparam V_BP = 18;  // pórtico trasero
+    localparam H_TOTAL = H_VIS + H_FP + H_SYNC + H_BP;  // ciclos por renglón
+    localparam V_TOTAL = V_VIS + V_FP + V_SYNC + V_BP;  // renglones por cuadro
+    localparam V_META = 16;  // renglón de enganche
 
     // error de fase
     wire signed [10:0] dif = $signed({1'b0, v}) - V_META;

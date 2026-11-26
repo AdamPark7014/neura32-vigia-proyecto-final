@@ -20,10 +20,25 @@ module tb_uc_simple;
         .halted(halted), .illegal(illegal), .alu_op(alu_op), .state(state)
     );
 
-    localparam OP_R1 = 7'b0110011, OP_R3 = 7'b1011011, OP_I1 = 7'b0010011, OP_LOAD = 7'b0000011;
-    localparam OP_STORE = 7'b0100011, OP_BRANCH = 7'b1100011, OP_JAL = 7'b1101111, OP_SYSTEM = 7'b1110011;
-    localparam FETCH = 4'd0, DECODE = 4'd1, EXEC_R = 4'd2, EXEC_DIV = 4'd3, EXEC_BR = 4'd4, JUMP_WAIT = 4'd5;
-    localparam MEM_ADDR = 4'd6, MEM_READ = 4'd7, MEM_WRITE = 4'd8, WRITEBACK = 4'd9, HALT = 4'd10;
+    localparam OP_R1 = 7'b0110011;  // tipo R, tabla 1
+    localparam OP_R3 = 7'b1011011;  // tipo R, tabla 3
+    localparam OP_I1 = 7'b0010011;  // inmediato, tabla 1
+    localparam OP_LOAD = 7'b0000011;  // carga de memoria
+    localparam OP_STORE = 7'b0100011;  // guarda en memoria
+    localparam OP_BRANCH = 7'b1100011;  // saltos condicionales
+    localparam OP_JAL = 7'b1101111;  // salto con enlace
+    localparam OP_SYSTEM = 7'b1110011;  // detiene el procesador
+    localparam FETCH = 4'd0;  // busca instrucción
+    localparam DECODE = 4'd1;  // decodifica instrucción
+    localparam EXEC_R = 4'd2;  // ejecuta en ALU
+    localparam EXEC_DIV = 4'd3;  // espera la división
+    localparam EXEC_BR = 4'd4;  // evalúa el salto
+    localparam JUMP_WAIT = 4'd5;  // espera tras salto
+    localparam MEM_ADDR = 4'd6;  // calcula la dirección
+    localparam MEM_READ = 4'd7;  // lee la memoria
+    localparam MEM_WRITE = 4'd8;  // escribe la memoria
+    localparam WRITEBACK = 4'd9;  // escribe el registro
+    localparam HALT = 4'd10;  // procesador detenido
 
     integer pruebas = 0, errores = 0;
     task revisar;

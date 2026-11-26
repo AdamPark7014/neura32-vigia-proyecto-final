@@ -8,52 +8,52 @@ module alu_riscv (
 	);
 
 	// tabla 1
-	localparam	ALU_ADD = 3'b000;
-	localparam	ALU_MUL = 3'b001;
-	localparam	ALU_AND = 3'b010;
-	localparam	ALU_OR = 3'b011;
-	localparam	ALU_XOR = 3'b100;
-	localparam	ALU_NOTA = 3'b101;
-	localparam	ALU_SLL = 3'b110;
-	localparam	ALU_SRL = 3'b111;
+	localparam	ALU_ADD = 3'b000;  // suma dos operandos
+	localparam	ALU_MUL = 3'b001;  // multiplica dos operandos
+	localparam	ALU_AND = 3'b010;  // AND por bits
+	localparam	ALU_OR = 3'b011;  // OR por bits
+	localparam	ALU_XOR = 3'b100;  // XOR por bits
+	localparam	ALU_NOTA = 3'b101;  // niega operando A
+	localparam	ALU_SLL = 3'b110;  // corrimiento lógico izquierda
+	localparam	ALU_SRL = 3'b111;  // corrimiento lógico derecha
 
 	// tabla 2
-	localparam	ALU_SUB = 3'b000;
-	localparam	ALU_SLT = 3'b001;
-	localparam	ALU_SLTU = 3'b010;
-	localparam	ALU_SRA = 3'b011;
-	localparam	ALU_XNOR = 3'b100;
-	localparam	ALU_MIN = 3'b101;
-	localparam	ALU_MINU = 3'b110;
-	localparam	ALU_MAX = 3'b111;
+	localparam	ALU_SUB = 3'b000;  // resta dos operandos
+	localparam	ALU_SLT = 3'b001;  // menor con signo
+	localparam	ALU_SLTU = 3'b010;  // menor sin signo
+	localparam	ALU_SRA = 3'b011;  // corrimiento aritmético derecha
+	localparam	ALU_XNOR = 3'b100;  // XNOR por bits
+	localparam	ALU_MIN = 3'b101;  // mínimo con signo
+	localparam	ALU_MINU = 3'b110;  // mínimo sin signo
+	localparam	ALU_MAX = 3'b111;  // máximo con signo
 
 	// tabla 3
-	localparam	ALU_DIVU = 3'b000;
-	localparam	ALU_REMU = 3'b001;
-	localparam	ALU_CPOP = 3'b010;
-	localparam	ALU_ABS = 3'b011;
-	localparam	ALU_SGT = 3'b100;
-	localparam	ALU_CLAMP = 3'b101;
+	localparam	ALU_DIVU = 3'b000;  // división sin signo
+	localparam	ALU_REMU = 3'b001;  // residuo sin signo
+	localparam	ALU_CPOP = 3'b010;  // cuenta unos
+	localparam	ALU_ABS = 3'b011;  // valor absoluto
+	localparam	ALU_SGT = 3'b100;  // mayor con signo
+	localparam	ALU_CLAMP = 3'b101;  // recorta a rango
 
 	// saltos
-	localparam	ALU_BEQ = 3'b000;
-	localparam	ALU_BNE = 3'b001;
-	localparam	ALU_BLT = 3'b100;
-	localparam	ALU_BGE = 3'b101;
-	localparam	ALU_BLTU = 3'b110;
-	localparam	ALU_BGEU = 3'b111;
+	localparam	ALU_BEQ = 3'b000;  // salta si igual
+	localparam	ALU_BNE = 3'b001;  // salta si distinto
+	localparam	ALU_BLT = 3'b100;  // salta si menor
+	localparam	ALU_BGE = 3'b101;  // salta si mayor-igual
+	localparam	ALU_BLTU = 3'b110;  // menor sin signo
+	localparam	ALU_BGEU = 3'b111;  // mayor-igual sin signo
 
 	// OPCODES
-	localparam OP_R1	= 7'b0110011;
-	localparam OP_R2	= 7'b0111011;
-	localparam OP_R3	= 7'b1011011;
-	localparam OP_I1	= 7'b0010011;
-	localparam OP_I2	= 7'b0011011;
-	localparam OP_LOAD	= 7'b0000011;
-	localparam OP_STORE	= 7'b0100011;
-	localparam OP_BRANCH	= 7'b1100011;
-	localparam OP_LUI	= 7'b0110111;
-	localparam OP_JALR	= 7'b1100111;
+	localparam OP_R1	= 7'b0110011;  // tipo R, tabla 1
+	localparam OP_R2	= 7'b0111011;  // tipo R, tabla 2
+	localparam OP_R3	= 7'b1011011;  // tipo R, tabla 3
+	localparam OP_I1	= 7'b0010011;  // inmediato, tabla 1
+	localparam OP_I2	= 7'b0011011;  // inmediato, tabla 2
+	localparam OP_LOAD	= 7'b0000011;  // carga de memoria
+	localparam OP_STORE	= 7'b0100011;  // guarda en memoria
+	localparam OP_BRANCH	= 7'b1100011;  // saltos condicionales
+	localparam OP_LUI	= 7'b0110111;  // carga inmediato alto
+	localparam OP_JALR	= 7'b1100111;  // salto a registro
 
 	wire [32:0] sum_ext = {1'b0,A} + {1'b0,B};
 	wire [32:0] sub_ext = {1'b0,A} - {1'b0,B};

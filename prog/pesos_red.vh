@@ -1,4 +1,7 @@
-localparam RED_ENTRADAS = 9, RED_OCULTAS = 16, RED_SALIDAS = 8, RED_SH1 = 2;
+localparam RED_ENTRADAS = 9;  // entradas de la red
+localparam RED_OCULTAS = 16;  // neuronas ocultas
+localparam RED_SALIDAS = 8;  // salidas de la red
+localparam RED_SH1 = 2;  // corrimiento capa oculta
 reg signed [7:0]  RED_W1 [0:143];
 reg signed [31:0] RED_B1 [0:15];
 reg signed [7:0]  RED_W2 [0:127];

@@ -1,11 +1,13 @@
-localparam VIG_ENTRADAS = 512, VIG_OCULTAS = 64, VIG_SALIDAS = 3;
+localparam VIG_ENTRADAS = 512;  // bits de entrada
+localparam VIG_OCULTAS = 64;  // neuronas ocultas
+localparam VIG_SALIDAS = 3;  // clases de salida
 reg        [31:0] VIG_W1 [0:1023];
 reg        [31:0] VIG_T1 [0:63];
 reg signed [7:0]  VIG_W2 [0:191];
 reg signed [31:0] VIG_B2 [0:2];
 reg        [31:0] VIG_PRUEBA [0:47];
-localparam VIG_PRUEBA_CLASE = 0;
-localparam VIG_PRUEBA_PERSONAS = 3;
+localparam VIG_PRUEBA_CLASE = 0;  // clase de prueba
+localparam VIG_PRUEBA_PERSONAS = 3;  // siluetas de prueba
 
 task cargar_pesos_vigia;
     begin

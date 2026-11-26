@@ -38,7 +38,7 @@ module vga_draw #(
 );
 
 	// ciclo 0
-	localparam suave = (scale == 1);
+	localparam suave = (scale == 1);  // interpola al ampliar
 	wire [9:0] vx = h >> scale;
 	wire [9:0] vy = v >> scale;
 	// interpolacion: renglon y columna siguientes en los pixeles impares

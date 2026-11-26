@@ -7,10 +7,18 @@ module generar_rom #(
 
     generador_programa #(.PROGRAMA(PROGRAMA)) gen ();
 
-    localparam OP_R1 = 7'b0110011, OP_R2 = 7'b0111011, OP_R3 = 7'b1011011;
-    localparam OP_I1 = 7'b0010011, OP_I2 = 7'b0011011;
-    localparam OP_LOAD = 7'b0000011, OP_STORE = 7'b0100011, OP_BRANCH = 7'b1100011;
-    localparam OP_LUI = 7'b0110111, OP_JAL = 7'b1101111, OP_JALR = 7'b1100111, OP_SYSTEM = 7'b1110011;
+    localparam OP_R1 = 7'b0110011;  // tipo R, tabla 1
+    localparam OP_R2 = 7'b0111011;  // tipo R, tabla 2
+    localparam OP_R3 = 7'b1011011;  // tipo R, tabla 3
+    localparam OP_I1 = 7'b0010011;  // inmediato, tabla 1
+    localparam OP_I2 = 7'b0011011;  // inmediato, tabla 2
+    localparam OP_LOAD = 7'b0000011;  // carga de memoria
+    localparam OP_STORE = 7'b0100011;  // guarda en memoria
+    localparam OP_BRANCH = 7'b1100011;  // saltos condicionales
+    localparam OP_LUI = 7'b0110111;  // carga inmediato alto
+    localparam OP_JAL = 7'b1101111;  // salto con enlace
+    localparam OP_JALR = 7'b1100111;  // salto a registro
+    localparam OP_SYSTEM = 7'b1110011;  // detiene el procesador
 
     integer f, i, fin_prog;
     reg [31:0] w;

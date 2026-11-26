@@ -29,10 +29,10 @@ module riscv_neura #(
 	);
 
 	// opcodes
-	localparam OP_LOAD = 7'b0000011,
-	OP_STORE  = 7'b0100011,
-	OP_LUI = 7'b0110111,
-	OP_JAL = 7'b1101111;
+	localparam OP_LOAD = 7'b0000011,  // carga de memoria
+	OP_STORE  = 7'b0100011,  // guarda en memoria
+	OP_LUI = 7'b0110111,  // carga inmediato alto
+	OP_JAL = 7'b1101111;  // salto con enlace
 
 	// senales de control
 	wire    reg_write, mem_read, mem_write, alu_src;

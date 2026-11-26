@@ -1,16 +1,52 @@
-localparam OP_R1 = 7'b0110011, OP_R2 = 7'b0111011, OP_R3 = 7'b1011011;
-localparam OP_I1 = 7'b0010011, OP_I2 = 7'b0011011;
-localparam OP_LOAD = 7'b0000011, OP_STORE = 7'b0100011, OP_BRANCH = 7'b1100011;
-localparam OP_LUI = 7'b0110111, OP_JAL = 7'b1101111, OP_JALR = 7'b1100111, OP_SYSTEM = 7'b1110011;
-localparam [31:0] NOP_WORD = 32'h00000013;
+localparam OP_R1 = 7'b0110011;  // tipo R, tabla 1
+localparam OP_R2 = 7'b0111011;  // tipo R, tabla 2
+localparam OP_R3 = 7'b1011011;  // tipo R, tabla 3
+localparam OP_I1 = 7'b0010011;  // inmediato, tabla 1
+localparam OP_I2 = 7'b0011011;  // inmediato, tabla 2
+localparam OP_LOAD = 7'b0000011;  // carga de memoria
+localparam OP_STORE = 7'b0100011;  // guarda en memoria
+localparam OP_BRANCH = 7'b1100011;  // saltos condicionales
+localparam OP_LUI = 7'b0110111;  // carga inmediato alto
+localparam OP_JAL = 7'b1101111;  // salto con enlace
+localparam OP_JALR = 7'b1100111;  // salto a registro
+localparam OP_SYSTEM = 7'b1110011;  // detiene el procesador
+localparam [31:0] NOP_WORD = 32'h00000013;  // instrucción sin efecto
 
 // registros ABI
-localparam X0 = 5'd0,  ZERO = 5'd0, RA = 5'd1,  SP = 5'd2,  GP = 5'd3,  TP = 5'd4;
-localparam T0 = 5'd5,  T1 = 5'd6,   T2 = 5'd7,  S0 = 5'd8,  FP = 5'd8,  S1 = 5'd9;
-localparam A0 = 5'd10, A1 = 5'd11,  A2 = 5'd12, A3 = 5'd13, A4 = 5'd14, A5 = 5'd15;
-localparam A6 = 5'd16, A7 = 5'd17,  S2 = 5'd18, S3 = 5'd19, S4 = 5'd20, S5 = 5'd21;
-localparam S6 = 5'd22, S7 = 5'd23,  S8 = 5'd24, S9 = 5'd25, S10 = 5'd26, S11 = 5'd27;
-localparam T3 = 5'd28, T4 = 5'd29,  T5 = 5'd30, T6 = 5'd31;
+localparam X0 = 5'd0;  // siempre vale cero
+localparam ZERO = 5'd0;  // alias de x0
+localparam RA = 5'd1;  // dirección de regreso
+localparam SP = 5'd2;  // apuntador de pila
+localparam GP = 5'd3;  // apuntador global
+localparam TP = 5'd4;  // apuntador de hilo
+localparam T0 = 5'd5;  // registro temporal
+localparam T1 = 5'd6;  // registro temporal
+localparam T2 = 5'd7;  // registro temporal
+localparam S0 = 5'd8;  // registro guardado
+localparam FP = 5'd8;  // apuntador de marco
+localparam S1 = 5'd9;  // registro guardado
+localparam A0 = 5'd10;  // argumento y resultado
+localparam A1 = 5'd11;  // argumento y resultado
+localparam A2 = 5'd12;  // argumento de función
+localparam A3 = 5'd13;  // argumento de función
+localparam A4 = 5'd14;  // argumento de función
+localparam A5 = 5'd15;  // argumento de función
+localparam A6 = 5'd16;  // argumento de función
+localparam A7 = 5'd17;  // argumento de función
+localparam S2 = 5'd18;  // registro guardado
+localparam S3 = 5'd19;  // registro guardado
+localparam S4 = 5'd20;  // registro guardado
+localparam S5 = 5'd21;  // registro guardado
+localparam S6 = 5'd22;  // registro guardado
+localparam S7 = 5'd23;  // registro guardado
+localparam S8 = 5'd24;  // registro guardado
+localparam S9 = 5'd25;  // registro guardado
+localparam S10 = 5'd26;  // registro guardado
+localparam S11 = 5'd27;  // registro guardado
+localparam T3 = 5'd28;  // registro temporal
+localparam T4 = 5'd29;  // registro temporal
+localparam T5 = 5'd30;  // registro temporal
+localparam T6 = 5'd31;  // registro temporal
 
 // formatos
 function [31:0] fmt_r;
@@ -84,7 +120,9 @@ function [31:0] MAX;  input [4:0] rd, rs1, rs2; MAX  = fmt_r(7'h00, rs2, rs1, 3'
 function [31:0] DIVU; input [4:0] rd, rs1, rs2; DIVU = fmt_r(7'h00, rs2, rs1, 3'b000, rd, OP_R3); endfunction
 function [31:0] REMU; input [4:0] rd, rs1, rs2; REMU = fmt_r(7'h00, rs2, rs1, 3'b001, rd, OP_R3); endfunction
 function [31:0] CPOP; input [4:0] rd, rs1;      CPOP = fmt_r(7'h00, 5'd0, rs1, 3'b010, rd, OP_R3); endfunction
-localparam XA_ABS = 3'b011, XA_SGT = 3'b100, XA_CLAMP = 3'b101;
+localparam XA_ABS = 3'b011;  // valor absoluto
+localparam XA_SGT = 3'b100;  // mayor con signo
+localparam XA_CLAMP = 3'b101;  // recorta a rango
 function [31:0] XOP; input [2:0] f3; input [4:0] rd, rs1, rs2; XOP = fmt_r(7'h00, rs2, rs1, f3, rd, OP_R3); endfunction
 
 // tipo I, tabla 1

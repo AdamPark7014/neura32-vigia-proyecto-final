@@ -25,7 +25,9 @@ module jtag_loader (
 		.virtual_state_cdr(v_cdr), .virtual_state_sdr(v_sdr), .virtual_state_udr(v_udr)
 	);
 
-	localparam IR_WRITE = 2'd1, IR_CTRL = 2'd2, IR_STATE = 2'd3;
+	localparam IR_WRITE = 2'd1;  // escribe una instrucción
+	localparam IR_CTRL = 2'd2;  // detiene el procesador
+	localparam IR_STATE = 2'd3;  // lee LEDs y displays
 
 	// lado del JTAG
 	reg [43:0] word;

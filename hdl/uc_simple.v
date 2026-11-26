@@ -27,31 +27,31 @@ module uc_simple (
 	);
 
 	// opcodes
-	localparam OP_R1 = 7'b0110011,
-	OP_R2 = 7'b0111011,
-	OP_R3 = 7'b1011011,
-	OP_I1 = 7'b0010011,
-	OP_I2 = 7'b0011011,
-	OP_LOAD = 7'b0000011,
-	OP_STORE  = 7'b0100011,
-	OP_BRANCH  = 7'b1100011,
-	OP_LUI = 7'b0110111,
-	OP_JAL = 7'b1101111,
-	OP_JALR = 7'b1100111,
-	OP_SYSTEM = 7'b1110011;
+	localparam OP_R1 = 7'b0110011,  // tipo R, tabla 1
+	OP_R2 = 7'b0111011,  // tipo R, tabla 2
+	OP_R3 = 7'b1011011,  // tipo R, tabla 3
+	OP_I1 = 7'b0010011,  // inmediato, tabla 1
+	OP_I2 = 7'b0011011,  // inmediato, tabla 2
+	OP_LOAD = 7'b0000011,  // carga de memoria
+	OP_STORE  = 7'b0100011,  // guarda en memoria
+	OP_BRANCH  = 7'b1100011,  // saltos condicionales
+	OP_LUI = 7'b0110111,  // carga inmediato alto
+	OP_JAL = 7'b1101111,  // salto con enlace
+	OP_JALR = 7'b1100111,  // salto a registro
+	OP_SYSTEM = 7'b1110011;  // detiene el procesador
 
 	// estados
-	localparam FETCH = 4'b0000,
-	DECODE = 4'b0001,
-	EXEC_R = 4'b0010,
-	EXEC_DIV= 4'b0011,
-	EXEC_BR = 4'b0100,
-	JUMP_WAIT=4'b0101,
-	MEM_ADDR= 4'b0110,
-	MEM_READ= 4'b0111,
-	MEM_WRITE=4'b1000,
-	WRITEBACK=4'b1001,
-	HALT = 4'b1010;
+	localparam FETCH = 4'b0000,  // busca instrucción
+	DECODE = 4'b0001,  // decodifica instrucción
+	EXEC_R = 4'b0010,  // ejecuta en ALU
+	EXEC_DIV= 4'b0011,  // espera la división
+	EXEC_BR = 4'b0100,  // evalúa el salto
+	JUMP_WAIT=4'b0101,  // espera tras salto
+	MEM_ADDR= 4'b0110,  // calcula la dirección
+	MEM_READ= 4'b0111,  // lee la memoria
+	MEM_WRITE=4'b1000,  // escribe la memoria
+	WRITEBACK=4'b1001,  // escribe el registro
+	HALT = 4'b1010;  // procesador detenido
 
 	reg [3:0] current_state, next_state;
 	assign state = current_state;

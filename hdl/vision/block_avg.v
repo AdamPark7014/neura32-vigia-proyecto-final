@@ -16,8 +16,8 @@ module block_avg #(
 	output reg [7:0] avg_data
 );
 
-	localparam cells = width >> block_log2;
-	localparam [8:0] mask = (1 << block_log2) - 1;
+	localparam cells = width >> block_log2;  // bloques por renglón
+	localparam [8:0] mask = (1 << block_log2) - 1;  // posición en bloque
 
 	wire [8:0] bx = pix_x & mask;
 	wire [8:0] by = {1'b0, pix_y} & mask;

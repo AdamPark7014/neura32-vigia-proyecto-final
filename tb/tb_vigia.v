@@ -49,11 +49,28 @@ module tb_vigia;
     );
 
     // variables en RAM
-    localparam VR_PID = 8, VR_VER = 12, VR_CUADRO = 16, VR_ENTRADAS = 20, VR_SALIDAS = 24;
-    localparam VR_ALARMA = 28, VR_NBLOBS = 32, VR_EN_ZONA = 36, VR_BENCH_X = 44, VR_BENCH_R = 48;
-    localparam VR_NO_PERSONA = 72, VR_PERSONAS = 76, VR_EVENTOS = 80, VR_CLASE_PRUEBA = 84;
-    localparam VR_CICLOS = 88, VR_MAX_CICLOS = 92, VR_PUNT = 96, VR_RECORTE = 32'h400, VR_LOG = 32'h500;
-    localparam VR_VISTAS = 124, VR_AUTOPRUEBA = 128, VR_REAPRENDIDOS = 140;
+    localparam VR_PID = 8;  // modelo de cámara
+    localparam VR_VER = 12;  // versión de cámara
+    localparam VR_CUADRO = 16;  // cuadro actual
+    localparam VR_ENTRADAS = 20;  // contador de entradas
+    localparam VR_SALIDAS = 24;  // contador de salidas
+    localparam VR_ALARMA = 28;  // alarma activa
+    localparam VR_NBLOBS = 32;  // manchas encontradas
+    localparam VR_EN_ZONA = 36;  // personas en zona
+    localparam VR_BENCH_X = 44;  // ciclos con cpop
+    localparam VR_BENCH_R = 48;  // ciclos sin cpop
+    localparam VR_NO_PERSONA = 72;  // objetos descartados
+    localparam VR_PERSONAS = 76;  // personas a la vista
+    localparam VR_EVENTOS = 80;  // eventos registrados
+    localparam VR_CLASE_PRUEBA = 84;  // clase de autoprueba
+    localparam VR_CICLOS = 88;  // ciclos del cuadro
+    localparam VR_MAX_CICLOS = 92;  // peor cuadro medido
+    localparam VR_PUNT = 96;  // puntuaciones de red
+    localparam VR_RECORTE = 32'h400;  // silueta recortada
+    localparam VR_LOG = 32'h500;  // bitácora de eventos
+    localparam VR_VISTAS = 124;  // conteo de vistas
+    localparam VR_AUTOPRUEBA = 128;  // aciertos de autoprueba
+    localparam VR_REAPRENDIDOS = 140;  // veces que reaprendió
 
     function [31:0] ram;
         input integer desp;

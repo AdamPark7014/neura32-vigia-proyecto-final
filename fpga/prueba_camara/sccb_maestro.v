@@ -23,14 +23,20 @@ module sccb_maestro #(
     output wire       ext_libre
 );
     // comandos
-    localparam C_ESPERA = 2'd0, C_ESCRIBE = 2'd1, C_LEE = 2'd2, C_FIN = 2'd3;
+    localparam C_ESPERA = 2'd0;  // espera milisegundos
+    localparam C_ESCRIBE = 2'd1;  // escribe un registro
+    localparam C_LEE = 2'd2;  // lee un registro
+    localparam C_FIN = 2'd3;  // fin de tabla
     reg [7:0]  pc;
     wire [17:0] comando;
 
     tabla_ov7670 tabla (.indice(pc), .comando(comando));
 
     // simbolos
-    localparam S_INI = 2'd0, S_BYTE = 2'd1, S_LEE = 2'd2, S_FIN = 2'd3;
+    localparam S_INI = 2'd0;  // condición de inicio
+    localparam S_BYTE = 2'd1;  // manda un byte
+    localparam S_LEE = 2'd2;  // recibe un byte
+    localparam S_FIN = 2'd3;  // condición de paro
     reg [1:0] tipo_sim [0:7];
     reg [7:0] byte_sim [0:7];
     reg [3:0] nsim, sim;
@@ -43,7 +49,10 @@ module sccb_maestro #(
     reg        destino_ver;
     reg        externo;
 
-    localparam E_CMD = 3'd0, E_ESPERA = 3'd1, E_SIM = 3'd2, E_FIN = 3'd3;
+    localparam E_CMD = 3'd0;  // lee siguiente comando
+    localparam E_ESPERA = 3'd1;  // espera milisegundos
+    localparam E_SIM = 3'd2;  // manda los símbolos
+    localparam E_FIN = 3'd3;  // tabla terminada
     reg [2:0] estado;
     assign ext_libre = (estado == E_FIN);
 

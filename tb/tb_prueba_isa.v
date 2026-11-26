@@ -43,9 +43,9 @@ module tb_prueba_isa;
         if (!rst && instr_ilegal) ilegales = ilegales + 1;
 
     // valores esperados
-    localparam [31:0] A = 32'h12345678;
-    localparam [31:0] B = 32'hDEADBEEF;
-    localparam N = 61;
+    localparam [31:0] A = 32'h12345678;  // operando de prueba
+    localparam [31:0] B = 32'hDEADBEEF;  // operando de prueba
+    localparam N = 61;  // número de pruebas
 
     reg [31:0]     esperado [0:N-1];
     reg [8*40-1:0] nombre   [0:N-1];

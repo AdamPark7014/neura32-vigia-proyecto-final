@@ -1,25 +1,77 @@
-localparam PV_LEDS = 32'h00, PV_SW = 32'h04, PV_HEX = 32'h08, PV_KEY = 32'h0C;
-localparam PV_TICKS = 32'h10, PV_CONSOLA = 32'h14, PV_CONTROL = 32'h18, PV_PLATAFORMA = 32'h24;
-localparam PV_CAM_SAL = 32'h40, PV_CAM_ENT = 32'h44, PV_VIS_CTRL = 32'h48, PV_VIS_EST = 32'h4C;
-localparam PV_VIS_FG = 32'h50;
-localparam PV_ZONA = 32'h54, PV_LINEA = 32'h58, PV_LETRERO = 32'h5C, PV_CAJA0 = 32'h60, PV_COLORES = 32'h80;
+localparam PV_LEDS = 32'h00;  // LEDs rojos
+localparam PV_SW = 32'h04;  // los interruptores
+localparam PV_HEX = 32'h08;  // displays siete segmentos
+localparam PV_KEY = 32'h0C;  // los botones
+localparam PV_TICKS = 32'h10;  // contador de ciclos
+localparam PV_CONSOLA = 32'h14;  // consola de texto
+localparam PV_CONTROL = 32'h18;  // control del sistema
+localparam PV_PLATAFORMA = 32'h24;  // placa o simulación
+localparam PV_CAM_SAL = 32'h40;  // salidas a cámara
+localparam PV_CAM_ENT = 32'h44;  // entradas de cámara
+localparam PV_VIS_CTRL = 32'h48;  // control de visión
+localparam PV_VIS_EST = 32'h4C;  // estado de visión
+localparam PV_VIS_FG = 32'h50;  // celdas en movimiento
+localparam PV_ZONA = 32'h54;  // zona prohibida
+localparam PV_LINEA = 32'h58;  // línea virtual
+localparam PV_LETRERO = 32'h5C;  // letrero de alarma
+localparam PV_CAJA0 = 32'h60;  // primer recuadro
+localparam PV_COLORES = 32'h80;  // color de recuadros
 
 // variables en RAM
-localparam VR_SIM = 0, VR_RETARDO = 4, VR_PID = 8, VR_VER = 12, VR_CUADRO = 16;
-localparam VR_ENTRADAS = 20, VR_SALIDAS = 24, VR_ALARMA = 28, VR_NBLOBS = 32, VR_EN_ZONA = 36;
-localparam VR_SIG_ID = 40, VR_BENCH_X = 44, VR_BENCH_R = 48, VR_ZONA = 52, VR_LINEA = 56;
-localparam VR_SENTIDO = 60, VR_F_AEC = 64, VR_F_APRENDE = 68, VR_NO_PERSONA = 72, VR_PERSONAS = 76;
-localparam VR_EVENTOS = 80, VR_CLASE_PRUEBA = 84, VR_CICLOS = 88, VR_MAX_CICLOS = 92, VR_PUNT = 96;
-localparam VR_CAM_OK = 108, VR_VIS_CTRL = 112, VR_MODO = 116, VR_ESPERA = 120, VR_VISTAS = 124;
-localparam VR_AUTOPRUEBA = 128, VR_MOVIDA = 132, VR_N_REAP = 136, VR_REAPRENDIDOS = 140, VR_N_AEC = 144;
-localparam VR_BLOBS = 32'h100, VR_PISTAS = 32'h300, VR_RECORTE = 32'h400, VR_EVENT_LOG = 32'h500;
-localparam DIR_ETIQ = 32'h10000800, DIR_PILA_FF = 32'h10001C00, DIR_PILA = 32'h10004000;
+localparam VR_SIM = 0;  // modo simulación
+localparam VR_RETARDO = 4;  // retardo del SCCB
+localparam VR_PID = 8;  // modelo de cámara
+localparam VR_VER = 12;  // versión de cámara
+localparam VR_CUADRO = 16;  // cuadro actual
+localparam VR_ENTRADAS = 20;  // contador de entradas
+localparam VR_SALIDAS = 24;  // contador de salidas
+localparam VR_ALARMA = 28;  // alarma activa
+localparam VR_NBLOBS = 32;  // manchas encontradas
+localparam VR_EN_ZONA = 36;  // personas en zona
+localparam VR_SIG_ID = 40;  // siguiente número pista
+localparam VR_BENCH_X = 44;  // ciclos con cpop
+localparam VR_BENCH_R = 48;  // ciclos sin cpop
+localparam VR_ZONA = 52;  // zona elegida
+localparam VR_LINEA = 56;  // línea elegida
+localparam VR_SENTIDO = 60;  // sentido prohibido
+localparam VR_F_AEC = 64;  // cuadro fija exposición
+localparam VR_F_APRENDE = 68;  // cuadro fin aprendizaje
+localparam VR_NO_PERSONA = 72;  // objetos descartados
+localparam VR_PERSONAS = 76;  // personas a la vista
+localparam VR_EVENTOS = 80;  // eventos registrados
+localparam VR_CLASE_PRUEBA = 84;  // clase de autoprueba
+localparam VR_CICLOS = 88;  // ciclos del cuadro
+localparam VR_MAX_CICLOS = 92;  // peor cuadro medido
+localparam VR_PUNT = 96;  // puntuaciones de red
+localparam VR_CAM_OK = 108;  // cámara respondió
+localparam VR_VIS_CTRL = 112;  // copia control visión
+localparam VR_MODO = 116;  // red sin cpop
+localparam VR_ESPERA = 120;  // espera al arrancar
+localparam VR_VISTAS = 124;  // conteo de vistas
+localparam VR_AUTOPRUEBA = 128;  // aciertos de autoprueba
+localparam VR_MOVIDA = 132;  // cuadros cámara movida
+localparam VR_N_REAP = 136;  // cuadros para reaprender
+localparam VR_REAPRENDIDOS = 140;  // veces que reaprendió
+localparam VR_N_AEC = 144;  // cuadros para exposición
+localparam VR_BLOBS = 32'h100;  // tabla de manchas
+localparam VR_PISTAS = 32'h300;  // tabla de pistas
+localparam VR_RECORTE = 32'h400;  // silueta recortada
+localparam VR_EVENT_LOG = 32'h500;  // bitácora de eventos
+localparam DIR_ETIQ = 32'h10000800;  // etiquetas por celda
+localparam DIR_PILA_FF = 32'h10001C00;  // pila del rellenado
+localparam DIR_PILA = 32'h10004000;  // pila del programa
 
 // parametros del algoritmo
-localparam AREA_MIN = 12, MAX_BLOBS = 8, MAX_PISTAS = 8, DIST_MAX = 14, PERM_MIN = 3;
-localparam UMBRAL = 28, ALFA = 3;
-localparam VOTO_MIN = 2, VOTO_MAX = 4;
-localparam MOVIDA_MIN = 3;
+localparam AREA_MIN = 12;  // mancha más chica
+localparam MAX_BLOBS = 8;  // máximo de manchas
+localparam MAX_PISTAS = 8;  // máximo de pistas
+localparam DIST_MAX = 14;  // distancia para emparejar
+localparam PERM_MIN = 3;  // cuadros para alarma
+localparam UMBRAL = 28;  // umbral de movimiento
+localparam ALFA = 3;  // velocidad del fondo
+localparam VOTO_MIN = 2;  // votos para confirmar
+localparam VOTO_MAX = 4;  // tope de votos
+localparam MOVIDA_MIN = 3;  // cuadros cámara movida
 
 // etiquetas
 integer L_inicio, L_plat_ok, L_lim, L_lim2, L_cam_ok, L_cam_sigue, L_cfg, L_cfg_fin, L_cp;

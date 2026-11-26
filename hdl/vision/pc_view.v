@@ -27,11 +27,11 @@ module pc_view #(
 );
 
 	// tamano
-	localparam pw = width / 2;
-	localparam ph = height / 2;
-	localparam cw = width / 4;
-	localparam ch = height / 4;
-	localparam y_items = pw * ph;
+	localparam pw = width / 2;  // ancho hacia PC
+	localparam ph = height / 2;  // alto hacia PC
+	localparam cw = width / 4;  // ancho del color
+	localparam ch = height / 4;  // alto del color
+	localparam y_items = pw * ph;  // pixeles de brillo
 
 	// lado de la camara
 	reg bank_wr;
@@ -96,8 +96,12 @@ module pc_view #(
 		.virtual_state_cdr(v_cdr), .virtual_state_sdr(v_sdr), .virtual_state_udr(v_udr)
 	);
 
-	localparam IR_VIDEO = 2'd1, IR_MASK = 2'd2, IR_META = 2'd3;
-	localparam PH_HEAD = 2'd0, PH_LUM = 2'd1, PH_COLOR = 2'd2;
+	localparam IR_VIDEO = 2'd1;  // lee el video
+	localparam IR_MASK = 2'd2;  // lee la máscara
+	localparam IR_META = 2'd3;  // lee los datos
+	localparam PH_HEAD = 2'd0;  // manda la cabecera
+	localparam PH_LUM = 2'd1;  // manda el brillo
+	localparam PH_COLOR = 2'd2;  // manda el color
 
 	reg reading;
 	reg [1:0] bank_t;

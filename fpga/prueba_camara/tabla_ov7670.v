@@ -4,7 +4,10 @@ module tabla_ov7670 (
     input  wire [7:0]  indice,
     output reg  [17:0] comando
 );
-    localparam C_ESPERA = 2'd0, C_ESCRIBE = 2'd1, C_LEE = 2'd2, C_FIN = 2'd3;
+    localparam C_ESPERA = 2'd0;  // espera milisegundos
+    localparam C_ESCRIBE = 2'd1;  // escribe un registro
+    localparam C_LEE = 2'd2;  // lee un registro
+    localparam C_FIN = 2'd3;  // fin de tabla
 
     always @(*) begin
         case (indice)

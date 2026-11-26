@@ -82,7 +82,7 @@ module tb_red_neuronal;
     endfunction
 
     // casos de prueba
-    localparam N_CASOS = 16;
+    localparam N_CASOS = 16;  // casos de prueba
     reg [8:0] caso [0:N_CASOS-1];
     integer c, k, errores = 0, pruebas = 0, limite, clase_hw, punt_hw, total_ciclos = 0, total_instr = 0;
 

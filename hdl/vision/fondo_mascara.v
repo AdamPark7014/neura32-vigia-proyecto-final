@@ -31,8 +31,8 @@ module fondo_mascara #(
     output reg  [12:0] vga_dir,
     output reg         vga_dato
 );
-    localparam PIXELES   = ANCHO * ALTO;
-    localparam POR_FILA  = ANCHO / 4;
+    localparam PIXELES   = ANCHO * ALTO;  // celdas por cuadro
+    localparam POR_FILA  = ANCHO / 4;  // palabras por renglón
 
     // memoria del fondo
     reg [7:0]  fondo [0:PIXELES-1];

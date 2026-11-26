@@ -118,7 +118,7 @@ assert all(inferir_q(bits_a_sw(patron_a_bits(p)))[0] == k for k, (_, p) in enume
 raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 destino = os.path.join(raiz, "prog", "pesos_red.vh")
 with open(destino, "w", encoding="ascii") as f:
-    f.write(f"localparam RED_ENTRADAS = {n_in}, RED_OCULTAS = {n_h}, RED_SALIDAS = {n_out}, RED_SH1 = {SH1};\n")
+    f.write(f"localparam RED_ENTRADAS = {n_in};  // entradas de la red\nlocalparam RED_OCULTAS = {n_h};  // neuronas ocultas\nlocalparam RED_SALIDAS = {n_out};  // salidas de la red\nlocalparam RED_SH1 = {SH1};  // corrimiento capa oculta\n")
     f.write(f"reg signed [7:0]  RED_W1 [0:{n_h*n_in-1}];\n")
     f.write(f"reg signed [31:0] RED_B1 [0:{n_h-1}];\n")
     f.write(f"reg signed [7:0]  RED_W2 [0:{n_out*n_h-1}];\n")
