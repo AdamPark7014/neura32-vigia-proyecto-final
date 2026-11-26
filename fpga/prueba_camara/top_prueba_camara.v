@@ -99,8 +99,8 @@ module top_prueba_camara (
 
     wire [9:0] h, v;
     wire       hs, vs, activo, cuadro_vga;
-    vga_sincronia sincronia (.clk(clk), .rst(rst), .h(h), .v(v), .hs(hs), .vs(vs),
-                             .activo(activo), .cuadro_nuevo(cuadro_vga));
+    vga_sincronia sincronia (.clk(clk), .rst(rst), .cam_inicio(1'b0), .h(h), .v(v), .hs(hs), .vs(vs),
+                             .activo(activo), .cuadro_nuevo(cuadro_vga), .enganchado());
 
     vga_dibujo #(.VID_ANCHO(320), .ESCALA_LOG2(1)) dibujo (
         .clk(clk), .rst(rst),
