@@ -188,7 +188,7 @@ h.append(Paragraph("Cableado pin por pin", H1))
 filas = [["Señal de la cámara", "Pin de JP1", "Señal en la FPGA", "Para qué sirve"]]
 uso = {"3V3": "alimentación", "GND": "tierra común", "SIOC (SCL)": "reloj del bus de configuración SCCB",
        "SIOD (SDA)": "datos del bus SCCB (drenador abierto)", "VSYNC (VS)": "inicio de cada cuadro",
-       "HREF (HS)": "línea de imagen válida", "PCLK": "reloj de píxel que entrega la cámara (6.25 MHz)",
+       "HREF (HS)": "línea de imagen válida", "PCLK": "reloj de píxel que entrega la cámara (12.5 MHz)",
        "XCLK (MCLK)": "reloj de 25 MHz que le da la FPGA", "RESET": "reinicio (activo en bajo)",
        "PWDN": "apagado (activo en alto, queda en 0)"}
 for senal, pin, gpio, _ in CABLES:
@@ -217,14 +217,15 @@ pasos = [["Paso", "Qué hacer", "Qué debe verse", "Si no se ve"],
          ["3", "Esperar.",
           "<b>LEDR6 parpadea</b> (llegan cuadros) y <b>LEDR8</b> queda encendido unos 3 s (aprende el fondo).",
           "LEDR7 sí pero LEDR6 no: revisar VSYNC (3), HREF (4) y PCLK (5)."],
-         ["4", "Mirar el monitor.", "El video de la cámara en gris.",
+         ["4", "Mirar el monitor.", "El video de la cámara a color y sin cortes, con la barra de estado arriba "
+          "(NEURA-32 VIGIA  PERSONAS: 0  EVENTOS: 00  REC).",
           "Imagen revuelta o rayada: revisar D0 a D7 (pines 7 a 16) y su orden. Muy oscura o borrosa: girar el lente para enfocar."],
          ["5", "Subir <b>SW3</b>.", "Lo que se mueve aparece en <b>azul</b>.",
           "Se pinta todo: subir el umbral con SW7..SW5. No se pinta nada: bajarlo."],
-         ["6", "Pasar una persona o una silueta recortada.",
-          "Recuadro <b>verde</b>. Al cruzar la línea punteada o entrar a la zona amarilla y quedarse: recuadro <b>rojo</b>, "
+         ["6", "Pasar una persona (cuerpo completo, medio cuerpo o solo el busto).",
+          "Recuadro <b>verde</b> con el letrero PERSONA y el contorno de su silueta. Al cruzar la línea punteada o entrar a la zona amarilla y quedarse: recuadro <b>rojo</b>, "
           "letrero <b>INTRUSO</b> y <b>LEDR9</b> parpadeando. Los displays cuentan entradas y salidas.",
-          "Ver «Ajustes». Si la mancha sale <b>gris</b>, la red la clasificó como «no persona»."]]
+          "Ver «Ajustes». Si la mancha sale <b>gris</b> con el letrero OBJETO, la red la clasificó como «no persona»."]]
 h.append(tabla(pasos, [13 * mm, 33 * mm, 62 * mm, ancho - 108 * mm]))
 
 # pagina 3
@@ -245,21 +246,22 @@ ctrl = [["Control", "Función"],
         ["SW1..SW0", "zona y línea: 0 zona a la derecha, 1 a la izquierda, 2 al centro, 3 media pantalla derecha"],
         ["SW2", "sentido prohibido de la línea: 0 de izquierda a derecha, 1 de derecha a izquierda"],
         ["SW3", "pinta en azul lo que se mueve"],
-        ["SW4", "red neuronal con RV32IM puro, sin Zbb (para comparar)"],
+        ["SW4", "red neuronal sin cpop: cuenta los bits por software (para comparar la velocidad)"],
         ["SW7..SW5", "umbral de movimiento: 28 + 8 x valor (0 = 28 más sensible, 7 = 84 menos sensible)"],
         ["SW8", "barras de colores en el monitor"],
         ["SW9", "arriba: vuelve a aprender el fondo; abajo: vigila"],
         ["LEDR9 / LEDR8 / LEDR7 / LEDR6 / LEDR0", "alarma (parpadea) / aprendiendo / cámara OK / cuadro procesado / alarma (fija)"],
         ["HEX5-4 / HEX3-2 / HEX1 / HEX0", "entradas / salidas / personas en la zona / manchas detectadas"],
-        ["Monitor", "video en gris; zona amarilla; línea cian punteada; recuadros verde (persona), rojo (intruso), "
+        ["Monitor", "video a color a 62.5 Hz, enganchado a la cámara (sin cortes); zona amarilla; línea cian punteada; recuadros verde (persona), rojo (intruso), "
                     "gris (no persona); letrero INTRUSO"]]
 h.append(tabla(ctrl, [55 * mm, ancho - 55 * mm]))
 
 h.append(Paragraph("Ajustes y consejos para la demostración", H1))
-for t in ["<b>Cámara fija.</b> El fondo se aprende con la cámara quieta. Si se mueve, subir y bajar SW9 sin nadie a la vista.",
+for t in ["<b>Cámara fija.</b> El fondo se aprende con la cámara quieta. Si se mueve o cambia mucho la luz, el programa lo nota "
+          "solo, prende LEDR8 y vuelve a aprender el fondo en 1.5 s. También se puede forzar subiendo y bajando SW9.",
           "<b>Distancia.</b> Con el lente del módulo (unos 22 grados en horizontal y 16 en vertical), una persona completa "
-          "de pie cabe a unos 6 m. Para una demo de mesa: siluetas recortadas o figuras de unos 30 cm a 1 m de la cámara.",
-          "<b>Luz estable.</b> La exposición se congela a los 2 s del arranque. Si la luz cambia mucho, presionar KEY0.",
+          "de pie cabe a unos 6 m, de medio cuerpo a unos 3 m y solo el busto a menos de 2 m. Para una demo de mesa: siluetas recortadas o figuras de unos 30 cm a 1 m de la cámara.",
+          "<b>Sin monitor.</b> Con el cable USB conectado, desde fpga: python ver_vigia.py muestra el mismo video a color en la PC.",
           "<b>Sombras o reflejos</b> que se marcan como manchas: subir el umbral. La red debe marcarlas en gris y no dar alarma.",
           "<b>Enfoque.</b> Girar el lente del módulo hasta que el borde de la persona se vea nítido en el monitor."]:
     h.append(Paragraph("&bull; " + t, TXT))
