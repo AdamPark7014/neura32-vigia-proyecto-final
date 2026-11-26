@@ -97,6 +97,8 @@ python ver_vigia.py
 
 Abre una ventana con el video de la cámara y lo mismo que dibuja el monitor (recuadros, letreros, silueta,
 zona, línea y alarma). Teclas: `M` muestra toda la máscara, `S` suaviza, `F` guarda una foto, `Esc` sale.
+Llegan cuadros completos (unos 19 por segundo); el título dice `VGA enganchado` cuando el monitor ya va al paso de la
+cámara. El monitor trabaja a 62.5 Hz: si alguno no la acepta, se ve en el paso 1 (barras de colores).
 
 ## Correr otro programa sin volver a compilar
 

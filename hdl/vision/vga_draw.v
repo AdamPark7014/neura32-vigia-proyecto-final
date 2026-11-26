@@ -48,16 +48,16 @@ module vga_draw #(
 	reg [9:0] h1, v1;
 	reg hs1, vs1, act1;
 
-	wire load_line = ((v < 10'd480) && (v[2:0] == 3'd3)) || (v == 10'd520);
-	wire [6:0] load_row = (v == 10'd520) ? 7'd0 : ({1'b0, v[8:3]} + 7'd1);
+	wire load_line = ((v < 10'd480) && (v[2:0] == 3'd3)) || (v == 10'd500);
+	wire [6:0] load_row = (v == 10'd500) ? 7'd0 : ({1'b0, v[8:3]} + 7'd1);
 	wire load_now = load_line && (h >= 10'd648) && (h < 10'd728);
 	wire [9:0] load_i = h - 10'd648;
 	assign msk_addr = load_row * 13'd80 + {6'd0, load_i[6:0]};
 
-	wire load_now1 = (((v1 < 10'd480) && (v1[2:0] == 3'd3)) || (v1 == 10'd520)) &&
+	wire load_now1 = (((v1 < 10'd480) && (v1[2:0] == 3'd3)) || (v1 == 10'd500)) &&
 	                 (h1 >= 10'd648) && (h1 < 10'd728);
-	wire [6:0] load_row1 = (v1 == 10'd520) ? 7'd0 : ({1'b0, v1[8:3]} + 7'd1);
-	wire shift_rows = (h1 == 10'd760) && (((v1 < 10'd480) && (v1[2:0] == 3'd7)) || (v1 == 10'd522));
+	wire [6:0] load_row1 = (v1 == 10'd500) ? 7'd0 : ({1'b0, v1[8:3]} + 7'd1);
+	wire shift_rows = (h1 == 10'd760) && (((v1 < 10'd480) && (v1[2:0] == 3'd7)) || (v1 == 10'd502));
 
 	always @(posedge clk)
 	begin
@@ -67,7 +67,7 @@ module vga_draw #(
 		end
 		if(shift_rows)
 		begin
-			row_up <= (v1 == 10'd522) ? 80'd0 : row_cur;
+			row_up <= (v1 == 10'd502) ? 80'd0 : row_cur;
 			row_cur <= row_dn;
 		end
 	end

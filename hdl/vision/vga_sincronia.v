@@ -1,35 +1,72 @@
 `timescale 1ns / 1ps
 
-// sincronia VGA
+// sincronia VGA enganchada a la camara
 module vga_sincronia (
     input  wire       clk,
     input  wire       rst,
+    input  wire       cam_inicio,
     output reg  [9:0] h,
     output reg  [9:0] v,
     output wire       hs,
     output wire       vs,
     output wire       activo,
-    output wire       cuadro_nuevo
+    output wire       cuadro_nuevo,
+    output wire       enganchado
 );
-    localparam H_VIS = 640, H_FP = 16, H_SYNC = 96, H_BP = 48;
-    localparam V_VIS = 480, V_FP = 10, V_SYNC = 2,  V_BP = 33;
+    // 784 x 510: dos cuadros del monitor por cada cuadro de la camara
+    localparam H_VIS = 640, H_FP = 16, H_SYNC = 96, H_BP = 32;
+    localparam V_VIS = 480, V_FP = 10, V_SYNC = 2,  V_BP = 18;
     localparam H_TOTAL = H_VIS + H_FP + H_SYNC + H_BP;
     localparam V_TOTAL = V_VIS + V_FP + V_SYNC + V_BP;
+    localparam V_META = 16;
+
+    // error de fase
+    wire signed [10:0] dif = $signed({1'b0, v}) - V_META;
+    wire signed [10:0] err = (dif > (V_TOTAL / 2)) ? dif - V_TOTAL :
+                             (dif < -(V_TOTAL / 2)) ? dif + V_TOTAL : dif;
+    reg  signed [10:0] ajuste;
+    reg  [1:0] buenos;
+    wire fin_linea = (h == H_TOTAL - 1);
+    wire fin_cuadro = fin_linea && (v == V_TOTAL - 1);
+    wire salto = cam_inicio && ((err > 11'sd24) || (err < -11'sd24));
 
     always @(posedge clk) begin
         if (rst) begin
             h <= 10'd0; v <= 10'd0;
-        end else if (h == H_TOTAL - 1) begin
-            h <= 10'd0;
-            v <= (v == V_TOTAL - 1) ? 10'd0 : v + 10'd1;
+            ajuste <= 11'sd0; buenos <= 2'd0;
         end else begin
-            h <= h + 10'd1;
+            h <= fin_linea ? 10'd0 : h + 10'd1;
+            if (salto) begin
+                v <= V_META;
+                ajuste <= 11'sd0;
+                buenos <= 2'd0;
+            end else begin
+                if (cam_inicio) begin
+                    ajuste <= err;
+                    buenos <= ((err < 11'sd3) && (err > -11'sd3)) ? ((buenos == 2'd3) ? 2'd3 : buenos + 2'd1) : 2'd0;
+                end
+                if (fin_cuadro) begin
+                    // un renglon de mas o de menos por cuadro
+                    if (ajuste > 11'sd0) begin
+                        ajuste <= ajuste - 11'sd1;
+                    end else begin
+                        v <= 10'd0;
+                    end
+                end else if (fin_linea) begin
+                    if ((v == V_TOTAL - 2) && (ajuste < 11'sd0)) begin
+                        v <= 10'd0;
+                        ajuste <= ajuste + 11'sd1;
+                    end else begin
+                        v <= v + 10'd1;
+                    end
+                end
+            end
         end
     end
 
     assign hs = ~((h >= H_VIS + H_FP) && (h < H_VIS + H_FP + H_SYNC));
     assign vs = ~((v >= V_VIS + V_FP) && (v < V_VIS + V_FP + V_SYNC));
-    // zona visible
     assign activo       = (h < H_VIS) && (v < V_VIS);
     assign cuadro_nuevo = (h == 10'd0) && (v == 10'd0);
+    assign enganchado   = buenos[1];
 endmodule

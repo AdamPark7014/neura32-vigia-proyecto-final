@@ -1,14 +1,17 @@
 === Vision: camara a color, monitor y vista en la PC ===
-        periodo de cuadro del modelo: 13.76 ms; PCLK = 12.50 MHz
+        periodo de cuadro del modelo: 31.99 ms; PCLK = 12.50 MHz
   ok    PCLK de 12.5 MHz (4 muestras del reloj de 50 MHz)
   ok    la mascara encontro a la persona
         celdas de silueta: 524
   ok    se guardo un cuadro completo del monitor
-  ok    cabecera del primer campo (A5, campo 0)
-  ok    cabecera del segundo campo (A5, campo 1)
+  ok    cabecera del primer cuadro (A5)
+  ok    cabecera del segundo cuadro (A5)
+  ok    monitor enganchado a la camara
+  ok    sin cortes entre cuadros
+        escrituras revisadas: 360319; choques: 0
   ok    la mascara que baja la PC trae la silueta
-        celdas en 1 en la mascara de la PC: 522
+        celdas en 1 en la mascara de la PC: 523
   ok    los recuadros llegan a la PC sin cambios
   ok    zona, linea y letrero llegan a la PC
   ok    personas y eventos llegan a la PC
-PRUEBAS: 9  ERRORES: 0
+PRUEBAS: 11  ERRORES: 0

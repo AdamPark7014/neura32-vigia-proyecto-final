@@ -133,11 +133,12 @@ module vision_vigia #(
 
     // VGA
     wire [9:0] h, v;
-    wire       hs, vs, activo, cuadro_vga;
+    wire       hs, vs, activo, cuadro_vga, enganchado;
+    wire       cam_inicio = pix_valid && (pix_x == 9'd0) && (pix_y == 8'd0);
 
     vga_sincronia sincronia (
-        .clk(clk), .rst(rst), .h(h), .v(v), .hs(hs), .vs(vs),
-        .activo(activo), .cuadro_nuevo(cuadro_vga)
+        .clk(clk), .rst(rst), .cam_inicio(cam_inicio), .h(h), .v(v), .hs(hs), .vs(vs),
+        .activo(activo), .cuadro_nuevo(cuadro_vga), .enganchado(enganchado)
     );
 
     vga_draw #(.width(width), .scale(vga_scale)) dibujo (
@@ -151,7 +152,7 @@ module vision_vigia #(
     );
 
     // vista en la PC
-    wire [383:0] meta = {28'd0, pixeles_fg, cuadros, hud_eventos, hud_personas,
+    wire [383:0] meta = {27'd0, enganchado, pixeles_fg, cuadros, hud_eventos, hud_personas,
                          letrero, linea, zona, colores, cajas};
 
     pc_view #(.width(width), .height(height), .meta_bits(384)) vista_pc (

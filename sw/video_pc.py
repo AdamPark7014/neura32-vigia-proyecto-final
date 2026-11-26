@@ -28,42 +28,24 @@ class Video:
         self.y = np.zeros((alto, ancho), dtype=np.float32)
         self.u = np.full((alto // 2, ancho // 2), 128, dtype=np.float32)
         self.v = np.full((alto // 2, ancho // 2), 128, dtype=np.float32)
-        self.campos = 0
-        self.movimiento = np.zeros((alto, ancho), dtype=bool)
+        self.cuadros = 0
 
-    def bits_campo(self):
-        return 16 + self.ancho * (self.alto // 2) * 4 + (self.ancho // 2) * (self.alto // 4) * 8
+    def bits_cuadro(self):
+        return 16 + self.ancho * self.alto * 4 + (self.ancho // 2) * (self.alto // 2) * 8
 
-    def poner_campo(self, bits):
-        # mete un campo
+    def poner_cuadro(self, bits):
+        # cuadro completo de un solo banco
         cab = int(bits_a_numeros(bits[:16], 16)[0])
         if (cab >> 8) != 0xA5:
             return None
-        campo = cab & 1
-        n_y = self.ancho * (self.alto // 2)
-        lum = bits_a_numeros(bits[16:16 + n_y * 4], 4).reshape(self.alto // 2, self.ancho).astype(np.float32)
-        lum = lum * 17.0
-        col = bits_a_numeros(bits[16 + n_y * 4:], 8).reshape(self.alto // 4, self.ancho // 2)
-        u = ((col >> 4) & 15).astype(np.float32) * 16 + 8
-        v = (col & 15).astype(np.float32) * 16 + 8
-        anterior = self.y[campo::2].copy()
-        self.y[campo::2] = lum
-        self.u[campo::2] = u
-        self.v[campo::2] = v
-        # desentrelazado
-        cambio = np.abs(lum - anterior) > 40
-        self.movimiento[campo::2] = cambio
-        otro = 1 - campo
-        if self.campos > 0:
-            if campo == 0:
-                vecino = np.vstack([lum[1:], lum[-1:]])
-                mov = cambio | np.vstack([cambio[1:], cambio[-1:]])
-            else:
-                vecino = np.vstack([lum[:1], lum[:-1]])
-                mov = cambio | np.vstack([cambio[:1], cambio[:-1]])
-            self.y[otro::2] = np.where(mov, (lum + vecino) / 2, self.y[otro::2])
-        self.campos += 1
-        return campo
+        n_y = self.ancho * self.alto
+        lum = bits_a_numeros(bits[16:16 + n_y * 4], 4).reshape(self.alto, self.ancho).astype(np.float32)
+        col = bits_a_numeros(bits[16 + n_y * 4:], 8).reshape(self.alto // 2, self.ancho // 2)
+        self.y = lum * 17.0
+        self.u = ((col >> 4) & 15).astype(np.float32) * 16 + 8
+        self.v = (col & 15).astype(np.float32) * 16 + 8
+        self.cuadros += 1
+        return self.cuadros
 
     def imagen(self, escala=4, suavizar=True):
         # imagen RGB ampliada
@@ -99,6 +81,7 @@ def leer_datos(bits):
         "eventos": campo(319, 8),
         "cuadros": campo(327, 16),
         "silueta": campo(343, 13),
+        "vga": campo(356, 1),
     }
 
 
@@ -180,9 +163,9 @@ def revisar_simulacion(carpeta, salida):
         return np.frombuffer(t.encode(), dtype=np.uint8) - 48
 
     video = Video()
-    for nombre in ("pc_campo0.txt", "pc_campo1.txt"):
-        campo = video.poner_campo(bits_de(nombre))
-        print(nombre, "-> campo", campo)
+    for nombre in ("pc_cuadro0.txt", "pc_cuadro1.txt"):
+        n = video.poner_cuadro(bits_de(nombre))
+        print(nombre, "-> cuadro", n)
     datos = leer_datos(bits_de("pc_datos.txt"))
     mascara = bits_de("pc_mascara.txt")
     print("datos:", {k: v for k, v in datos.items() if k != "cajas"})

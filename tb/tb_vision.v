@@ -13,7 +13,7 @@ module tb_vision;
     pullup (siod);
     assign sioc = 1'b1;
     reg cam_resetb = 0;
-    modelo_ov7670 #(.ANCHO(640), .ALTO(480)) camara (
+    modelo_ov7670 #(.ANCHO(640), .ALTO(480), .H_BLANCO(464), .V_BLANCO(11)) camara (
         .xclk(clk25), .resetb(cam_resetb), .pwdn(1'b0),
         .pclk(pclk), .href(href), .vsync(vsync), .d(d), .sioc(sioc), .siod(siod)
     );
@@ -66,6 +66,15 @@ module tb_vision;
             else begin errores = errores + 1; $display("  FALLA %0s", nombre); end
         end
     endtask
+
+    // sin cortes: el monitor no lee el renglon que escribe la camara
+    integer choques = 0, escrituras = 0;
+    always @(posedge clk25) begin
+        if (dut.enganchado && dut.pix_valid) begin
+            escrituras = escrituras + 1;
+            if (dut.activo && (dut.v[9:1] == {2'b00, dut.pix_y})) choques = choques + 1;
+        end
+    end
 
     // guardar cuadro
     integer f, guardando = 0, pix = 0;
@@ -136,16 +145,19 @@ module tb_vision;
         wait (guardando == 3);
         revisar("se guardo un cuadro completo del monitor", pix == 640 * 480);
 
-        // dos campos
+        // dos cuadros completos
         dut.vista_pc.jtag_virtual.poner_ir(2'd1);
-        dut.vista_pc.jtag_virtual.correr_dr(16 + 160 * 60 * 4 + 80 * 30 * 8);
+        dut.vista_pc.jtag_virtual.correr_dr(16 + 160 * 120 * 4 + 80 * 60 * 8);
         for (i = 0; i < 16; i = i + 1) cab[i] = dut.vista_pc.jtag_virtual.datos[i];
-        revisar("cabecera del primer campo (A5, campo 0)", cab == 16'hA500);
-        guardar_bits("tb/salidas/pc_campo0.txt");
-        dut.vista_pc.jtag_virtual.correr_dr(16 + 160 * 60 * 4 + 80 * 30 * 8);
+        revisar("cabecera del primer cuadro (A5)", cab == 16'hA500);
+        guardar_bits("tb/salidas/pc_cuadro0.txt");
+        dut.vista_pc.jtag_virtual.correr_dr(16 + 160 * 120 * 4 + 80 * 60 * 8);
         for (i = 0; i < 16; i = i + 1) cab[i] = dut.vista_pc.jtag_virtual.datos[i];
-        revisar("cabecera del segundo campo (A5, campo 1)", cab == 16'hA501);
-        guardar_bits("tb/salidas/pc_campo1.txt");
+        revisar("cabecera del segundo cuadro (A5)", cab == 16'hA500);
+        guardar_bits("tb/salidas/pc_cuadro1.txt");
+        revisar("monitor enganchado a la camara", dut.enganchado == 1'b1);
+        revisar("sin cortes entre cuadros", escrituras > 76800 && choques == 0);
+        $display("        escrituras revisadas: %0d; choques: %0d", escrituras, choques);
 
         // mascara y datos
         dut.vista_pc.jtag_virtual.poner_ir(2'd2);
@@ -171,5 +183,5 @@ module tb_vision;
         $finish;
     end
 
-    initial #400_000_000 begin $display("TIEMPO AGOTADO"); $finish; end
+    initial #900_000_000 begin $display("TIEMPO AGOTADO"); $finish; end
 endmodule

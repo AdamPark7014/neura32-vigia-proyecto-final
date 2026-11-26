@@ -291,13 +291,17 @@ quartus_stp -t cargar_programa.tcl programa_demo.txt
    promedio exponencial F ← F + (I − F)/2^α. Una celda es silueta si |I − F| supera un umbral. Donde hay
    alguien parado el fondo aprende cuatro veces más lento, para que una persona quieta no se «borre». La
    máscara se escribe en dos bancos: la cámara llena uno mientras el procesador lee el otro.
-5. **Monitor** (`vga_sincronia.v`, `vga_draw.v`). 640 × 480 a 60 Hz. Convierte YUV a RGB con sumas y
+5. **Monitor** (`vga_sincronia.v`, `vga_draw.v`). 640 × 480 a 62.5 Hz (784 × 510 ciclos), justo dos cuadros del
+   monitor por cada cuadro de la cámara. El barrido se engancha a la cámara: el renglón 0 se escribe cuando el
+   monitor va en su renglón 16, así el monitor nunca lee el renglón que se está escribiendo y no hay cortes
+   aunque la cámara se mueva. Convierte YUV a RGB con sumas y
    corrimientos y trama el resultado (2 × 2) para el DAC de 4 bits de la placa. Encima dibuja el contorno de
    la silueta de cada persona, la línea virtual, la zona prohibida, hasta ocho recuadros con su letrero
    (`PERSONA` en verde, `INTRUSO` en rojo, `OBJETO` en gris, con una fuente de 8 × 16), el letrero grande de
    alarma y una barra de estado con las personas a la vista y los eventos.
 6. **Vista en la PC** (`pc_view.v`, `fpga/ver_vigia.py`). Cuando no hay monitor, el mismo video sale por el
-   cable USB-Blaster (JTAG): 160 × 120 entrelazado, con la máscara y los recuadros, y una ventana en la
+   cable USB-Blaster (JTAG): cuadros completos de 160 × 120 tomados de un solo banco (sin entrelazar), con la
+   máscara y los recuadros, y una ventana en la
    computadora dibuja lo mismo que el monitor.
 
 ![Lo que muestra el monitor](docs/img/vga_color.png)
@@ -395,7 +399,7 @@ las salidas completas están en `tb/*.txt`.
 | `tb_prueba_isa` | las 49 instrucciones: las tres tablas, inmediatos, cargas y almacenamientos por byte, los seis saltos, subrutinas, división entre cero, lectura de tablas | 64 / 64 |
 | `tb_red_neuronal` | clasificador 3 × 3 en las 16 combinaciones de prueba contra un modelo de referencia | 481 / 481 |
 | `tb_cargador` | se carga otro programa por JTAG con el procesador ya corriendo | 7 / 7 |
-| `tb_vision` | cámara a color, máscara, cuadro completo del monitor y lo que baja a la PC | 9 / 9 |
+| `tb_vision` | cámara a color, máscara, monitor enganchado sin cortes y lo que baja a la PC | 11 / 11 |
 | `tb_vigia` | el sistema completo con un modelo de la cámara (5.1) | 31 / 31 |
 
 El programa de la clase, ciclo por ciclo, en el procesador final (`tb_programa_ab_c`):
@@ -530,13 +534,13 @@ tiempo de cada cuadro y la respuesta llega en el cuadro siguiente.
 
 | Recurso | Usado | Disponible |
 |---|---|---|
-| Elementos lógicos | 9 148 (18 %) | 49 760 |
-| Registros | 4 039 | |
+| Elementos lógicos | 9 130 (18 %) | 49 760 |
+| Registros | 4 035 | |
 | Bloques de memoria M9K | 163 (90 %) | 182 |
 | Bits de memoria | 1 211 136 (72 %) | 1 677 312 |
 | Multiplicadores de 9 bits | 6 | 288 |
 | Pines | 121 | 360 |
-| Frecuencia máxima del reloj de 25 MHz (modelo lento, 85 °C) | 35.71 MHz | se necesitan 25 MHz |
+| Frecuencia máxima del reloj de 25 MHz (modelo lento, 85 °C) | 35.03 MHz | se necesitan 25 MHz |
 
 La memoria es lo que más se ocupa: el video (brillo y color), las dos copias que se mandan a la PC, el
 fondo, las máscaras, las 4096 palabras de programa y las 4096 de datos.

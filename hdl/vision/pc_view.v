@@ -31,8 +31,7 @@ module pc_view #(
 	localparam ph = height / 2;
 	localparam cw = width / 4;
 	localparam ch = height / 4;
-	localparam y_items = pw * (ph / 2);
-	localparam uv_items = cw * (ch / 2);
+	localparam y_items = pw * ph;
 
 	// lado de la camara
 	reg bank_wr;
@@ -101,7 +100,6 @@ module pc_view #(
 	localparam PH_HEAD = 2'd0, PH_LUM = 2'd1, PH_COLOR = 2'd2;
 
 	reg reading;
-	reg field;
 	reg [1:0] bank_t;
 	reg bank_rd;
 	reg [1:0] phase;
@@ -110,8 +108,6 @@ module pc_view #(
 	reg [2:0] nbit, last_bit;
 	reg [14:0] y_ptr;
 	reg [12:0] uv_ptr;
-	reg [8:0] y_col;
-	reg [7:0] uv_col;
 	reg [14:0] items;
 	reg bypass;
 
@@ -121,8 +117,8 @@ module pc_view #(
 	wire [7:0] uv_q = bank_rd ? uvb_q : uva_q;
 
 	// siguiente pixel
-	wire [14:0] y_next = (y_col == pw - 1) ? y_ptr + pw + 15'd1 : y_ptr + 15'd1;
-	wire [12:0] uv_next = (uv_col == cw - 1) ? uv_ptr + cw + 13'd1 : uv_ptr + 13'd1;
+	wire [14:0] y_next = y_ptr + 15'd1;
+	wire [12:0] uv_next = uv_ptr + 13'd1;
 
 	// mascara
 	reg [12:0] msk_ptr;
@@ -140,19 +136,17 @@ module pc_view #(
 			bank_rd <= ~bank_t[1];
 		end
 
-		// campo de video
+		// cuadro de video
 		if((v_ir == IR_VIDEO) && v_cdr)
 		begin
 			reading <= 1'b1;
 			phase <= PH_HEAD;
 			head_second <= 1'b0;
-			shift <= {7'd0, field};
+			shift <= 8'd0;
 			nbit <= 3'd0;
 			last_bit <= 3'd7;
-			y_ptr <= field ? pw : 15'd0;
-			uv_ptr <= field ? cw : 13'd0;
-			y_col <= 9'd0;
-			uv_col <= 8'd0;
+			y_ptr <= 15'd0;
+			uv_ptr <= 13'd0;
 			items <= 15'd0;
 		end else
 		begin
@@ -174,7 +168,6 @@ module pc_view #(
 								last_bit <= 3'd3;
 								phase <= PH_LUM;
 								y_ptr <= y_next;
-								y_col <= (y_col == pw - 1) ? 9'd0 : y_col + 9'd1;
 								items <= 15'd1;
 							end
 						end
@@ -186,12 +179,10 @@ module pc_view #(
 								last_bit <= 3'd7;
 								phase <= PH_COLOR;
 								uv_ptr <= uv_next;
-								uv_col <= (uv_col == cw - 1) ? 8'd0 : uv_col + 8'd1;
 							end else
 							begin
 								shift <= {4'd0, y_q};
 								y_ptr <= y_next;
-								y_col <= (y_col == pw - 1) ? 9'd0 : y_col + 9'd1;
 								items <= items + 15'd1;
 							end
 						end
@@ -199,7 +190,6 @@ module pc_view #(
 						begin
 							shift <= uv_q;
 							uv_ptr <= uv_next;
-							uv_col <= (uv_col == cw - 1) ? 8'd0 : uv_col + 8'd1;
 						end
 					endcase
 				end else
@@ -212,7 +202,6 @@ module pc_view #(
 		if(reading && (v_udr || (v_ir != IR_VIDEO)))
 		begin
 			reading <= 1'b0;
-			field <= ~field;
 		end
 
 		// mascara
@@ -252,7 +241,6 @@ module pc_view #(
 	// valores iniciales
 	initial begin
 		reading = 1'b0;
-		field = 1'b0;
 		bank_t = 2'b00;
 		bank_rd = 1'b0;
 		msk_ptr = 13'd0;

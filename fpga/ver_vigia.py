@@ -47,17 +47,17 @@ class Visor:
                                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
                                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                 salida = self.proc.stdout
-                n_campo = self.video.bits_campo()
+                n_cuadro = self.video.bits_cuadro()
                 while self.vivo:
                     linea = salida.readline()
                     if not linea:
                         break
                     linea = linea.strip()
-                    if linea.startswith("CAMPO"):
+                    if linea.startswith("CUADRO"):
                         self.ms_jtag = int(linea.split()[1])
-                        bits = hex_a_bits(salida.readline(), n_campo)
+                        bits = hex_a_bits(salida.readline(), n_cuadro)
                         with self.cerradura:
-                            if self.video.poner_campo(bits) is not None:
+                            if self.video.poner_cuadro(bits) is not None:
                                 self.tiempos = (self.tiempos + [time.time()])[-20:]
                                 self.nuevo = True
                     elif linea == "MASCARA":
@@ -112,10 +112,11 @@ class Visor:
         img = self.componer(min(ancho, alto * 4 // 3))
         with self.cerradura:
             t = list(self.tiempos)
+            vga = bool(self.datos and self.datos.get("vga"))
         ritmo = (len(t) - 1) / (t[-1] - t[0]) if len(t) > 1 and t[-1] > t[0] else 0.0
         sin_senal = (not t) or (time.time() - t[-1] > 3.0)
         pie = (f"{'SIN VIDEO: revisa la placa y el cable USB   ' if sin_senal else ''}"
-               f"{ritmo:4.1f} campos/s   JTAG {self.ms_jtag} ms   "
+               f"{ritmo:4.1f} cuadros/s   JTAG {self.ms_jtag} ms   VGA {'enganchado' if vga else 'libre'}   "
                f"M mascara   S suavizado   F foto   Esc salir")
         self.raiz.title("NEURA-32 Vigia  |  CAM 01  |  " + pie)
         self.foto_tk = ImageTk.PhotoImage(img)
