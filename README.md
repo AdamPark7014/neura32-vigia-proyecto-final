@@ -12,6 +12,8 @@
 [5. Verificación](#5-verificación) · [6. Recursos y rendimiento](#6-mediciones-de-recursos-y-rendimiento) ·
 [7. Conclusiones](#7-conclusiones-y-trabajo-futuro) · [Cómo se usa](#cómo-se-usa)
 
+**Documentos:** [artículo de congreso, formato IEEE a dos columnas](docs/Articulo_NEURA32_Vigia.pdf) · [reporte completo en PDF](docs/Reporte_NEURA32_Vigia.pdf)
+
 ---
 
 ## 1. Planteamiento del problema y justificación

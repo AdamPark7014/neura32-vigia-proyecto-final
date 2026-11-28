@@ -38,3 +38,7 @@ activehdl/library.cfg
 __pycache__/
 *.pyc
 .ai/
+docs/articulo/*.aux
+docs/articulo/*.log
+docs/articulo/*.out
+docs/articulo/articulo.pdf
