@@ -4,6 +4,14 @@
 **Equipo:** Roberto Orozco Ramírez (ID 184595) · Adam Del Pozo Ontiveros (ID 185611)
 **Plataforma:** Verilog-2005 · Icarus Verilog y Active-HDL · Quartus Prime 24.1 Lite · DE10-Lite (MAX 10 10M50DAF484C7G) · cámara OV7670 · monitor VGA
 
+![NEURA-32 Vigía](docs/img/portada.png)
+
+**Contenido:** [1. Problema](#1-planteamiento-del-problema-y-justificación) ·
+[2. Del RISC-V de la clase a NEURA-32](#2-del-risc-v-de-la-clase-a-neura-32-paso-a-paso) ·
+[3. Visión](#3-la-visión-hardware-sin-procesador) · [4. Programa de vigilancia](#4-el-programa-de-vigilancia) ·
+[5. Verificación](#5-verificación) · [6. Recursos y rendimiento](#6-mediciones-de-recursos-y-rendimiento) ·
+[7. Conclusiones](#7-conclusiones-y-trabajo-futuro) · [Cómo se usa](#cómo-se-usa)
+
 ---
 
 ## 1. Planteamiento del problema y justificación
@@ -92,6 +100,11 @@ hablar con el exterior, ni usar más de las 8 operaciones que caben en `alu_op`.
 
 ### 2.3 Las etapas
 
+
+<p align="center"><img src="docs/img/etapas.png" alt=""></p>
+
+*Las diez etapas, del procesador de la clase al sistema de vigilancia. Cada una agrega solo lo que algún programa usa.*
+
 | Etapa | Qué se le agregó a la base | Dónde | Prueba que lo demuestra |
 |---|---|---|---|
 | 0 | Nada: el programa `(a + b) · c` de la clase corre igual en el procesador final | `riscv_neura.v` | `tb_programa_ab_c` |
@@ -176,6 +189,10 @@ de sumas; junto con `xnor` es toda la aritmética de una neurona binaria.
 Son **49 instrucciones** con 12 opcodes. `OP_R1` es exactamente la tabla de la clase y por eso
 `programa_ab_c.txt` corre sin cambiarle un bit.
 
+<p align="center"><img src="docs/img/isa.png" alt=""></p>
+
+*Las cuatro tablas de 8 operaciones: el opcode escoge la tabla y el `funct3` la operación.*
+
 ### 2.5 La unidad de control
 
 ```
@@ -198,6 +215,18 @@ Son **49 instrucciones** con 12 opcodes. `OP_R1` es exactamente la tabla de la c
 | salto que no se cumple | FETCH, DECODE, EXEC_BR | 3 |
 | salto que se cumple, `jal`, `jalr` | FETCH, DECODE, EXEC_BR, JUMP_WAIT | 4 |
 | `divu`, `remu` | FETCH, DECODE, EXEC_DIV (32 ciclos del divisor), WRITEBACK | 36 |
+
+<p align="center"><img src="docs/img/unidad_control.png" alt=""></p>
+
+*La máquina de estados de la unidad de control y los ciclos que tarda cada tipo de instrucción.*
+
+<p align="center"><img src="docs/img/rtl/uc_simple_estados.png" alt=""></p>
+
+*La misma máquina de estados como la reconoce Quartus (State Machine Viewer): los 11 estados de `current_state` y, abajo, la tabla de transiciones con la condición de cada una.*
+
+<p align="center"><img src="docs/img/rtl/uc_simple_salidas.png" alt=""></p>
+
+*`uc_simple` en el RTL Viewer: la lógica que saca las señales de control a partir del estado (`pc_en`, `ir_en`, `alu_src`, `reg_write`, `result_src`, `pc_src`, `div_start`, …). Es una máquina de Moore: ninguna salida depende de la ALU en el mismo ciclo.*
 
 Las salidas dependen solo del estado y de la instrucción que está en `IR` (máquina de Moore), igual que en
 la `uc_simple` original. Las señales nuevas son `pc_src` (PC + 4, PC + inmediato o resultado de la ALU),
@@ -223,6 +252,28 @@ la `uc_simple` original. Las señales nuevas son `pc_src` (PC + 4, PC + inmediat
    └── PC + 4 · PCI + inmediato · rs1 + inmediato                               └───────┘
 ```
 
+<p align="center"><img src="docs/img/ruta_datos.png" alt=""></p>
+
+*El camino de datos: los mismos bloques de la clase (azul), la ALU y el divisor (verde), las entradas y salidas (morado) y las dos rutas de regreso: `wdata` al banco de registros y `pc_src` al PC.*
+
+#### El camino de datos en el RTL Viewer de Quartus
+
+Así queda `riscv_neura` después de la síntesis. Los bloques verdes son las instancias de la clase (`pipo_register`,
+`decoder`, `regfile`, `alu_riscv`, `ram`, `uc_simple`) y el divisor; los trapecios son los multiplexores que escogen de
+dónde viene cada dato.
+
+<p align="center"><img src="docs/img/rtl/riscv_neura.png" alt=""></p>
+
+*`riscv_neura` completo en el RTL Viewer.*
+
+<p align="center"><img src="docs/img/rtl/riscv_neura_dec_dmem.png" alt=""></p>
+
+*Acercamiento: el decodificador (`decoder:DEC`) saca los cinco inmediatos, y las cuatro RAM de 8 bits (`ram:DMEM0..3`) reciben cada una su byte y su habilitación de escritura para `sb`, `sh` y `sw`.*
+
+<p align="center"><img src="docs/img/rtl/riscv_neura_rf_uc_alu.png" alt=""></p>
+
+*Acercamiento: banco de registros (`regfile:RF`), divisor (`divider:DIV`), unidad de control (`uc_simple:UC`) con todas sus salidas, la ALU (`alu_riscv:ALU`) y el registro `ALUOUT`.*
+
 ### 2.7 Mapa de memoria
 
 | Dirección | Contenido |
@@ -236,6 +287,10 @@ la `uc_simple` original. Las señales nuevas son `pc_src` (PC + 4, PC + inmediat
 
 `TICKS` es un contador de ciclos: con él el programa mide cuánto tarda (no hacen falta registros
 especiales dentro del procesador).
+
+<p align="center"><img src="docs/img/mapa_memoria.png" width="560" alt=""></p>
+
+*Mapa de memoria: programa, datos, máscara de movimiento y registros de entrada y salida.*
 
 ### 2.8 Los programas: de Verilog a un `.txt` en hexadecimal
 
@@ -267,6 +322,33 @@ dirección 0, sin volver a compilar en Quartus:
 quartus_stp -t cargar_programa.tcl programa_demo.txt
 ```
 
+### 2.9 Los bloques por dentro (RTL Viewer)
+
+**El sistema completo.** `soc_neura32` une el procesador con la visión, los periféricos, el cargador por JTAG y los
+registros que el programa usa para dibujar sobre el video.
+
+<p align="center"><img src="docs/img/rtl/soc_neura32.png" alt=""></p>
+
+*`soc_neura32` en el RTL Viewer: `riscv_neura:cpu`, `vision_vigia:vision`, `registros_vision:regs_vision`, `perifericos:perif` y `jtag_loader:cargador`, con el bus de entradas y salidas que los une.*
+
+**`cpop` en hardware.** Dentro de la ALU, `cpop` es un árbol de sumadores: suma los bits de dos en dos, luego de cuatro en
+cuatro, y así hasta tener la cuenta de 0 a 32 en 9 bits. Es lo que vuelve a la red neuronal 2.46 veces más rápida.
+
+<p align="center"><img src="docs/img/rtl/alu_cpop.png" alt=""></p>
+
+*Acercamiento a la ALU: el árbol de sumas de `cpop` (`Add2` … `Add30`, salida `OUT[8..0]`) y, abajo, el comparador de `slt`.*
+
+<p align="center"><img src="docs/img/rtl/alu_riscv.png" width="760" alt=""></p>
+
+*`alu_riscv` completa (dos páginas del RTL Viewer): las tres tablas de 8 operaciones y los multiplexores que escogen el resultado según el opcode y el `funct3`.*
+
+**El divisor.** Resta y corre un bit por ciclo; un contador de 6 bits lleva la cuenta de las 32 vueltas y `ready` avisa a
+la unidad de control que ya puede pasar a `WRITEBACK`.
+
+<p align="center"><img src="docs/img/rtl/divider.png" alt=""></p>
+
+*`divider` en el RTL Viewer: registros del divisor, cociente y residuo, el contador y las banderas `busy` y `ready`.*
+
 ## 3. La visión (hardware, sin procesador)
 
 ```
@@ -278,6 +360,11 @@ quartus_stp -t cargar_programa.tcl programa_demo.txt
                │                         máscara (2 bancos) ──► procesador │ zona, línea, recuadros,
                └──► pc_view ──► JTAG ──► PC                        └───────┘ letreros (registros)
 ```
+
+
+<p align="center"><img src="docs/img/vision.png" alt=""></p>
+
+*Todo lo que se repite en cada pixel es hardware; el procesador solo lee la máscara y escribe lo que se dibuja.*
 
 1. **Cámara.** La FPGA le da el reloj (XCLK de 25 MHz, con fase ajustable) y el programa la configura por
    SCCB: 320 × 240, YUV 4:2:2, PLL × 4 y preescala entre 2, que dan PCLK de 12.5 MHz y unos **31 cuadros por
@@ -382,6 +469,11 @@ Resultado con aritmética entera, que es lo que ejecuta el procesador, sobre 1 8
 | medio cuerpo | 96.0 % |
 | busto | 95.8 % |
 
+
+<p align="center"><img src="docs/img/red_neuronal.png" alt=""></p>
+
+*La red binaria: 512 bits de entrada, 64 neuronas que solo usan `xnor` y `cpop`, y 3 clases. Al centro, la matriz de confusión con aritmética entera; a la derecha, los tres tamaños de persona.*
+
 ![Siluetas de la autoprueba](docs/img/siluetas_prueba.png)
 
 *Las tres siluetas guardadas en la memoria de programa que el procesador clasifica al arrancar: cuerpo
@@ -402,6 +494,10 @@ las salidas completas están en `tb/*.txt`.
 | `tb_cargador` | se carga otro programa por JTAG con el procesador ya corriendo | 7 / 7 |
 | `tb_vision` | cámara a color, máscara, monitor enganchado sin cortes y lo que baja a la PC | 11 / 11 |
 | `tb_vigia` | el sistema completo con un modelo de la cámara (5.1) | 31 / 31 |
+
+<p align="center"><img src="docs/img/verificacion.png" alt=""></p>
+
+*Los siete bancos de pruebas: todos se revisan solos y terminan sin errores.*
 
 El programa de la clase, ciclo por ciclo, en el procesador final (`tb_programa_ab_c`):
 
@@ -505,6 +601,13 @@ XCLK y PCLK, la ventana de imagen (registros HSTART, HSTOP, VSTRT, VSTOP) y la f
 imagen sin rayas. Esos ajustes están en `prog/ajustes_camara.txt`, que es de donde sale la tabla que el
 programa le escribe a la cámara.
 
+<p align="center"><img src="docs/img/placa_camara.png" alt=""></p>
+
+*Capturas reales de la cámara en la DE10-Lite, leídas por JTAG con `fpga/prueba_camara`. Izquierda: con XCLK sin invertir se rompen los renglones; con XCLK a 180° la imagen sale limpia. Derecha: antes y después de escribir los 157 registros de ajuste.*
+
+Después, con el diseño completo grabado en la memoria flash de la placa, la cámara entregó 31 cuadros por segundo y el
+monitor se mantuvo enganchado a ella, sin cortes al mover la cámara.
+
 ## 6. Mediciones de recursos y rendimiento
 
 ### 6.1 Rendimiento
@@ -515,6 +618,10 @@ programa le escribe a la cámara.
 | Prueba de todas las instrucciones | 198 | 924 | 4.66 (incluye divisiones de 36 ciclos) |
 | Clasificador 3 × 3 (una inferencia) | 2 632 | 10 782 | 4.09 |
 | Vigía, simulación completa | 5 558 959 | 23 483 842 | 4.22 |
+
+<p align="center"><img src="docs/img/rendimiento.png" alt=""></p>
+
+*Izquierda: ciclos por instrucción de cada programa. Centro: la red neuronal con y sin `cpop`. Derecha: el peor cuadro con una persona ocupa el 31 % del tiempo entre dos cuadros de la cámara.*
 
 **La red binaria con y sin `cpop`** (misma silueta, medido por el propio programa con `TICKS`):
 
@@ -542,6 +649,10 @@ tiempo de cada cuadro y la respuesta llega en el cuadro siguiente.
 | Multiplicadores de 9 bits | 6 | 288 |
 | Pines | 121 | 360 |
 | Frecuencia máxima del reloj de 25 MHz (modelo lento, 85 °C) | 33.57 MHz | se necesitan 25 MHz |
+
+<p align="center"><img src="docs/img/recursos.png" alt=""></p>
+
+*Recursos por bloque según el reporte del Fitter de Quartus. La lógica se reparte entre el monitor, el banco de registros, el promedio de la visión y la ALU; la memoria es casi toda video.*
 
 La memoria es lo que más se ocupa: el video (brillo y color), las dos copias que se mandan a la PC, el
 fondo, las máscaras, las 4096 palabras de programa y las 4096 de datos.
